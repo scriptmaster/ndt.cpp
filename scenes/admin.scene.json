@@ -1,0 +1,52 @@
+{
+  "id": "admin_scene",
+  "layout": "grid",
+  "cols": 8,
+  "rows": 12,
+  "bg": {
+    "graphic": "blurred_orbs",
+    "color": "#0d0d14"
+  },
+  "widgets": [
+    {
+      "type": "tab",
+      "label": "General",
+      "scene": "admin.general.scene.json",
+      "row": 0,
+      "col": 0,
+      "width": 2,
+      "height": 1,
+      "margin": 0.05
+    },
+    {
+      "type": "tab",
+      "label": "Network",
+      "scene": "admin.network.scene.json",
+      "row": 0,
+      "col": 2,
+      "width": 2,
+      "height": 1,
+      "margin": 0.05
+    },
+    {
+      "type": "tab",
+      "label": "Assets",
+      "scene": "admin.assets.scene.json",
+      "row": 0,
+      "col": 4,
+      "width": 2,
+      "height": 1,
+      "margin": 0.05
+    },
+    {
+      "type": "tab",
+      "label": "Design",
+      "scene": "admin.design.scene.json",
+      "row": 0,
+      "col": 6,
+      "width": 2,
+      "height": 1,
+      "margin": 0.05
+    }
+  ]
+}

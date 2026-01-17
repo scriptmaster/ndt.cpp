@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Id="*" Name="NDT Logo Display" Language="1033" Version="$(var.ProductVersion)" Manufacturer="NDT" UpgradeCode="A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D">
+        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" Description="NDT Logo Display Application" />
+        
+        <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+        <MediaTemplate EmbedCab="yes" />
+        
+        <Feature Id="ProductFeature" Title="NDT Logo Display" Level="1">
+            <ComponentGroupRef Id="ProductComponents" />
+        </Feature>
+    </Product>
+
+    <Fragment>
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFilesFolder">
+                <Directory Id="INSTALLFOLDER" Name="NDT Logo Display">
+                    <Directory Id="BINFOLDER" Name="bin" />
+                </Directory>
+            </Directory>
+        </Directory>
+    </Fragment>
+
+    <Fragment>
+        <ComponentGroup Id="ProductComponents" Directory="BINFOLDER">
+            <Component Id="ApplicationExecutable" Guid="*">
+                <File Id="AppExe" Source="$(var.BinPath)\$(var.TargetName).exe" KeyPath="yes" />
+            </Component>
+            
+            <Component Id="GlfwDll" Guid="*">
+                <File Id="GlfwDll" Source="$(var.BinPath)\glfw3.dll" />
+            </Component>
+            
+            <Component Id="LibGccDll" Guid="*">
+                <File Id="LibGccDll" Source="$(var.BinPath)\libgcc_s_seh-1.dll" />
+            </Component>
+            
+            <Component Id="LibStdCppDll" Guid="*">
+                <File Id="LibStdCppDll" Source="$(var.BinPath)\libstdc++-6.dll" />
+            </Component>
+            
+            <Component Id="LibWinPthreadDll" Guid="*">
+                <File Id="LibWinPthreadDll" Source="$(var.BinPath)\libwinpthread-1.dll" />
+            </Component>
+        </ComponentGroup>
+    </Fragment>
+</Wix>

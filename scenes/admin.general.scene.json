@@ -1,0 +1,97 @@
+{
+  "id": "admin_general_scene",
+  "layout": "grid",
+  "cols": 8,
+  "rows": 12,
+  "bg": {
+    "graphic": "blurred_orbs",
+    "color": "#0d0d14"
+  },
+  "widgets": [
+    {
+      "type": "tab",
+      "label": "General",
+      "scene": "admin.general.scene.json",
+      "active": "true",
+      "row": 0,
+      "col": 0,
+      "width": 2,
+      "height": 1,
+      "margin": 0.05
+    },
+    {
+      "type": "tab",
+      "label": "Network",
+      "scene": "admin.network.scene.json",
+      "row": 0,
+      "col": 2,
+      "width": 2,
+      "height": 1,
+      "margin": 0.05
+    },
+    {
+      "type": "tab",
+      "label": "Assets",
+      "scene": "admin.assets.scene.json",
+      "row": 0,
+      "col": 4,
+      "width": 2,
+      "height": 1,
+      "margin": 0.05
+    },
+    {
+      "type": "tab",
+      "label": "Design",
+      "scene": "admin.design.scene.json",
+      "row": 0,
+      "col": 6,
+      "width": 2,
+      "height": 1,
+      "margin": 0.05
+    },
+    {
+      "type": "label",
+      "text": "Silence Detection:",
+      "row": 3,
+      "col": 1,
+      "width": 3,
+      "height": 1,
+      "margin": 0.1
+    },
+    {
+      "type": "control",
+      "control_type": "slider",
+      "value": "10",
+      "min": "0",
+      "max": "100",
+      "label": "Silence Detection",
+      "row": 3,
+      "col": 4,
+      "width": 3,
+      "height": 1,
+      "margin": 0.1
+    },
+    {
+      "type": "label",
+      "text": "Number of samples:",
+      "row": 5,
+      "col": 1,
+      "width": 3,
+      "height": 1,
+      "margin": 0.1
+    },
+    {
+      "type": "control",
+      "control_type": "slider",
+      "value": "25",
+      "min": "0",
+      "max": "100",
+      "label": "Number of samples",
+      "row": 5,
+      "col": 4,
+      "width": 3,
+      "height": 1,
+      "margin": 0.1
+    }
+  ]
+}

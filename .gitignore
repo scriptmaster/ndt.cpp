@@ -1,0 +1,13 @@
+builds
+bin
+*.o
+*.log
+*.exe
+*.msi
+*.wixobj
+*.wixpdb
+*.wixproj
+*.wixproj.user
+*.wixproj.user.props
+*.wixproj.user.targets
+*.wixproj.user.props

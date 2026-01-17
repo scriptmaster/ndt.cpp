@@ -1,0 +1,30 @@
+{
+  "id": "opening_scene",
+  "layout": "grid",
+  "cols": 8,
+  "rows": 12,
+  "bg": {
+    "graphic": "blurred_orbs",
+    "color": "#191926"
+  },
+  "widgets": [
+    {
+      "type": "language_card",
+      "language": "English",
+      "row": 10,
+      "col": 2,
+      "width": 2,
+      "height": 2,
+      "margin": 0.1
+    },
+    {
+      "type": "language_card",
+      "language": "Arabic",
+      "row": 10,
+      "col": 4,
+      "width": 2,
+      "height": 2,
+      "margin": 0.1
+    }
+  ]
+}
