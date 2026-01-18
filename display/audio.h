@@ -5,7 +5,7 @@
 #include <vector>
 
 // Audio system for procedural bass sound generation
-void initAudio(int seed);
+void initAudioGeneration(int seed);
 void playBassSound(float duration, float fadeInDuration);
 void updateAudio(float deltaTime);
 void cleanupAudio();
@@ -24,5 +24,6 @@ void startAudioCapture();
 void stopAudioCapture();
 bool isAudioCapturing();
 std::vector<short> getCapturedAudioSamples(); // Get captured audio samples for STT
+std::string getAudioDeviceName(); // Get current audio device name
 
 #endif // AUDIO_H

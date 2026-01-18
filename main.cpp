@@ -29,7 +29,7 @@ int main() {
      * Must be done before any output to ensure all messages are logged
      */
     std::cout << "[DEBUG] Starting main()..." << std::endl;
-    
+
     /**
      * STEP 1: Initialize logging
      */
@@ -59,7 +59,7 @@ int main() {
         cleanupLogging();
         return -1;
     }
-    
+
     /**
      * STEP 3: Create windows
      */
@@ -119,19 +119,17 @@ int main() {
      * STEP 7: Display startup messages
      */
     std::cout << "[DEBUG] STEP 7: Displaying startup messages..." << std::endl;
-    std::cout << "NDT Logo Display Running..." << std::endl;
+    std::cout << "Display Running..." << std::endl;
     std::cout << "Press ESC, Alt+F4, or close windows to exit" << std::endl;
     std::cout << "[DEBUG] STEP 7: Startup messages displayed - SUCCESS" << std::endl;
     
     /**
-     * STEP 8: Initialize audio system (DISABLED FOR DEBUGGING)
+     * STEP 8: Initialize audio system
      */
-    std::cout << "[DEBUG] STEP 8: Audio initialization DISABLED for debugging" << std::endl;
+    std::cout << "[DEBUG] STEP 8: Initializing audio system..." << std::endl;
     bool audioInitialized = false;
-    // DISABLED: Audio initialization temporarily disabled to isolate crash
-    /*
     try {
-        audioInitialized = initializeAudioSystem();
+        audioInitialized = initializeSystems();
         if (!audioInitialized) {
             std::cerr << "[WARNING] STEP 8: Audio initialization failed, continuing without audio" << std::endl;
         } else {
@@ -141,7 +139,6 @@ int main() {
         std::cerr << "[ERROR] STEP 8: Audio initialization failed with exception" << std::endl;
         // Continue anyway
     }
-    */
     
     /**
      * STEP 9: Run main loop

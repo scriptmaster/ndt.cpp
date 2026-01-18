@@ -33,7 +33,8 @@ struct Scene {
 
 // Scene management
 bool loadScene(const std::string& filename, Scene& scene);
-void renderScene(const Scene& scene, int windowWidth, int windowHeight, float deltaTime);
+void renderScene(const Scene& scene, int windowWidth, int windowHeight, float deltaTime, int frameCount = 0);
 void renderWaveformWidget(int windowWidth, int windowHeight); // Waveform widget rendering
+void renderDeviceNameLabel(int windowWidth, int windowHeight); // Render audio device name at bottom right
 
 #endif // SCENE_H

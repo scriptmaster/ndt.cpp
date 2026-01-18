@@ -7,6 +7,8 @@
 #include "render.h"
 #include "texture.h"
 #include "admin.h"
+#include "scene_logger.h"
+#include "opening_scene.h"
 #include <GLFW/glfw3.h>
 
 #ifdef _WIN32
@@ -23,12 +25,21 @@
 #include <cstdlib>
 
 /**
- * Initialize the audio system with error handling
+ * Initialize all application systems (logging, network, audio generation, audio capture)
+ * This function coordinates initialization of multiple subsystems:
+ * - Scene logger (for debug logging)
+ * - Network (for Whisper STT)
+ * - Audio generation (procedural audio based on seed)
+ * - Audio capture (microphone input for waveform and STT)
+ * 
  * Attempts to load audio seed from config file, falls back to default
  * Wraps initialization in try-catch to handle any exceptions gracefully
  */
-bool initializeAudioSystem() {
+bool initializeSystems() {
     std::cout << "[DEBUG] Initializing audio..." << std::endl;
+    
+    // Initialize scene logger (which also initializes audio logger)
+    initSceneLogger();
     
     /**
      * Attempt to load audio seed from config file
@@ -57,12 +68,12 @@ bool initializeAudioSystem() {
         }
         
         /**
-         * Initialize audio system with the determined seed
+         * Initialize audio generation system with the determined seed
          * This sets up procedural audio generation based on the seed value
          * Any exceptions during initialization will be caught and logged
          */
-        initAudio(seed);
-        std::cout << "[DEBUG] Audio initialized successfully" << std::endl;
+        initAudioGeneration(seed);
+        std::cout << "[DEBUG] Audio generation initialized successfully" << std::endl;
         
         /**
          * Initialize audio capture for Whisper STT
@@ -88,40 +99,6 @@ bool initializeAudioSystem() {
     }
 }
 
-/**
- * Load the opening scene from JSON file
- * Attempts to load scenes/opening.scene.json and populates the scene structure
- * Handles file errors and parsing errors gracefully without crashing
- */
-bool loadOpeningScene(Scene& openingScene) {
-    std::cout << "[DEBUG] Loading opening scene..." << std::endl;
-    
-    /**
-     * Attempt to load scene from JSON file
-     * The loadScene function handles file I/O and JSON parsing
-     * Returns false if file doesn't exist or contains invalid JSON
-     */
-    try {
-        bool loaded = loadScene("scenes/opening.scene.json", openingScene);
-        std::cout << "[DEBUG] Scene loaded: " << (loaded ? "yes" : "no") << std::endl;
-        
-        /**
-         * If scene failed to load, log a warning but don't crash
-         * The application will continue running, just without the scene
-         * This allows graceful degradation when scene file is missing
-         */
-        if (!loaded) {
-            std::cerr << "[WARNING] Failed to load opening scene" << std::endl;
-        }
-        return loaded;
-    } catch (const std::exception& e) {
-        std::cerr << "[ERROR] Exception during scene loading: " << e.what() << std::endl;
-        return false;
-    } catch (...) {
-        std::cerr << "[ERROR] Unknown exception during scene loading" << std::endl;
-        return false;
-    }
-}
 
 /**
  * Check if user requested application shutdown
@@ -156,19 +133,19 @@ void processUserInput(const std::vector<WindowData>& windows) {
      */
     for (const auto& wd : windows) {
         try {
-            /**
-             * Check for ESC key press
-             * ESC is a common shutdown shortcut, so we handle it here
-             * When detected, we set all windows to close, ensuring complete shutdown
-             */
-            if (glfwGetKey(wd.window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-                std::cout << "ESC key pressed - shutting down gracefully..." << std::endl;
-                for (auto& w : windows) {
-                    glfwSetWindowShouldClose(w.window, GLFW_TRUE);
-                }
-                return; // Exit early since we're shutting down
-            }
-            
+            // /**
+            //  * Check for ESC key press
+            //  * ESC is a common shutdown shortcut, so we handle it here
+            //  * When detected, we set all windows to close, ensuring complete shutdown
+            //  */
+            // if (glfwGetKey(wd.window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+            //     std::cout << "ESC key pressed - shutting down gracefully..." << std::endl;
+            //     for (auto& w : windows) {
+            //         glfwSetWindowShouldClose(w.window, GLFW_TRUE);
+            //     }
+            //     return; // Exit early since we're shutting down
+            // }
+
             /**
              * Check for Alt+F4 key combination
              * Alt+F4 is the standard Windows close shortcut
@@ -350,7 +327,7 @@ void runMainLoop(std::vector<WindowData>& windows) {
                      * Routes to logo texture, opening scene, admin scene, or error placeholder
                      * Opening scene is rendered here; logo alpha is used for fade effects
                      */
-                    renderContentForState(wd, fbWidth, fbHeight, alpha, lastFrameTime);
+                    renderContentForState(wd, fbWidth, fbHeight, alpha, lastFrameTime, frameCount);
                     
                     /**
                      * Swap front and back buffers to display rendered frame
@@ -404,7 +381,7 @@ void runMainLoop(std::vector<WindowData>& windows) {
                 }
                 
                 lastFrameTime = currentFrameTime;
-                // DISABLED: updateAudio(deltaTime);
+                updateAudio(deltaTime); // Re-enabled for waveform widget
                 std::cout << "[DEBUG] Audio updated" << std::endl;
             } catch (const std::exception& e) {
                 std::cerr << "[ERROR] Exception during audio update: " << e.what() << std::endl;
@@ -499,13 +476,41 @@ void cleanupApplication(std::vector<WindowData>& windows) {
      * On Windows, cleans up WinSock2
      * Must be done after all network operations are complete
      */
+        try {
+            cleanupNetwork();
+            std::cout << "[DEBUG] Network cleaned up" << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "[ERROR] Exception during network cleanup: " << e.what() << std::endl;
+        } catch (...) {
+            std::cerr << "[ERROR] Unknown exception during network cleanup" << std::endl;
+        }
+        
+        /**
+         * Cleanup scene logger (which also closes audio logger)
+         * This ensures all log files are properly closed
+         */
+        try {
+            cleanupSceneLogger();
+            std::cout << "[DEBUG] Scene logger cleaned up" << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "[ERROR] Exception during scene logger cleanup: " << e.what() << std::endl;
+        } catch (...) {
+            std::cerr << "[ERROR] Unknown exception during scene logger cleanup" << std::endl;
+        }
+    
+    /**
+     * Cleanup scene and audio loggers
+     * Closes scene.log and audio.log files
+     * Must be done before main logging cleanup
+     */
     try {
-        cleanupNetwork();
-        std::cout << "[DEBUG] Network cleaned up" << std::endl;
+        cleanupSceneLogger();
+        cleanupAudioLogger();
+        std::cout << "[DEBUG] Scene and audio loggers cleaned up" << std::endl;
     } catch (const std::exception& e) {
-        std::cerr << "[ERROR] Exception during network cleanup: " << e.what() << std::endl;
+        std::cerr << "[ERROR] Exception during scene/audio logger cleanup: " << e.what() << std::endl;
     } catch (...) {
-        std::cerr << "[ERROR] Unknown exception during network cleanup" << std::endl;
+        std::cerr << "[ERROR] Unknown exception during scene/audio logger cleanup" << std::endl;
     }
     
     /**

@@ -1,5 +1,6 @@
 #include "audio.h"
 #include "network.h"
+#include "scene_logger.h"
 #include <cmath>
 #include <cstdio>  // For FILE, fopen, fclose, fscanf, fprintf
 #include <cstdlib>
@@ -31,15 +32,76 @@ static double soundStartTime = -1.0;
 static float soundDuration = 2.0f;
 static float soundFadeInDuration = 2.0f;
 
-// Waveform widget state - amplitude values updated every 100ms
-// 44100 samples/sec / 10 bars/sec = 4410 samples per bar (per 100ms)
-// 10 bars total (one second worth), rendered at 60fps
+// Waveform widget state - RMS-based waveform renderer
+// Captures audio at 44100 Hz, processes in chunks of 512 samples
+// Updates waveform bars at 30fps (every 2 frames at 60fps)
 static const int SAMPLE_RATE = 44100;
-static const int SAMPLES_PER_BAR = SAMPLE_RATE / 10; // 4410 samples per 100ms bar
-static const int NUM_BARS = 10; // 10 bars per second (100ms intervals)
-static std::vector<float> waveformAmplitudes(NUM_BARS, 0.0f); // 10 bars
-static double lastWaveformUpdate = 0.0;
-static const double WAVEFORM_UPDATE_INTERVAL = 0.1; // 100ms
+static const int SAMPLE_BUFFER_SIZE = 512; // Circular buffer for samples
+static const int RMS_HISTORY_SIZE = 30; // 1 second of RMS history at 30fps
+static const int MAX_BARS = 300; // ~10 seconds at 30fps
+static const float CLAMP_THRESHOLD = 0.02f; // Clamp bars below 2% of max
+static const float SILENCE_THRESHOLD = 0.001f; // RMS below this is considered silence
+
+// Sample buffer (circular buffer, max 512 samples)
+static std::vector<float> sampleBuffer(SAMPLE_BUFFER_SIZE, 0.0f);
+static int sampleBufferWriteIndex = 0;
+static int sampleBufferCount = 0; // Number of valid samples in buffer
+
+// RMS history (30 values for 1 second at 30fps)
+static std::vector<float> rmsHistory;
+static float maxRMSSeen = 0.0001f; // Small value to avoid division by zero
+
+// Bar data structure
+struct BarData {
+    float height; // Normalized height (0.0 to 1.0)
+};
+
+// Bar history (300 bars for ~10 seconds)
+static std::vector<BarData> barHistory;
+
+// Audio device name (stored during initialization)
+static std::string audioDeviceName = "Unknown";
+
+// Update tracking - update at 30fps (every 2 frames at 60fps)
+static int frameCount = 0;
+static const int UPDATE_INTERVAL_FRAMES = 2; // Update every 2 frames (30fps from 60fps)
+
+// Add audio samples to circular buffer (called from audio callback)
+static void updateAudioSamples(const float* samples, int numSamples) {
+    for (int i = 0; i < numSamples; i++) {
+        sampleBuffer[sampleBufferWriteIndex] = samples[i];
+        sampleBufferWriteIndex = (sampleBufferWriteIndex + 1) % SAMPLE_BUFFER_SIZE;
+        if (sampleBufferCount < SAMPLE_BUFFER_SIZE) {
+            sampleBufferCount++;
+        }
+    }
+}
+
+// Calculate RMS from current sample buffer
+static float calculateRMS() {
+    if (sampleBufferCount == 0) return 0.0f;
+    
+    float sumSquared = 0.0f;
+    for (int i = 0; i < sampleBufferCount; i++) {
+        float sample = sampleBuffer[i];
+        sumSquared += sample * sample;
+    }
+    
+    return sqrtf(sumSquared / sampleBufferCount);
+}
+
+// Add a new bar to history
+static void addBar(float heightPercent) {
+    BarData bar;
+    bar.height = heightPercent;
+    
+    barHistory.insert(barHistory.begin(), bar); // Insert at front (newest first)
+    
+    // Keep only MAX_BARS
+    if (barHistory.size() > MAX_BARS) {
+        barHistory.resize(MAX_BARS);
+    }
+}
 
 // Simple PRNG based on seed
 static float randomFloat(int& seed) {
@@ -82,7 +144,7 @@ static void generateBassWaveform(short* buffer, int samples, int sampleRate, int
     }
 }
 
-void initAudio(int seed) {
+void initAudioGeneration(int seed) {
     audioSeed = seed;
     audioInitialized = true;
     srand(seed);
@@ -106,73 +168,108 @@ void playBassSound(float duration, float fadeInDuration) {
 }
 
 void updateAudio(float deltaTime) {
-    // Update waveform amplitudes every 100ms using deltaTime accumulation
-    // Each bar represents 4410 samples (100ms at 44100 samples/sec) averaged
-    static double accumulatedTime = 0.0;
-    accumulatedTime += deltaTime;
+    // Update waveform bars at 30fps (every 2 frames at 60fps)
+    frameCount++;
     
-    if (accumulatedTime - lastWaveformUpdate >= WAVEFORM_UPDATE_INTERVAL) {
-        lastWaveformUpdate = accumulatedTime;
-        
-        // If capturing real audio, waveform is updated in waveInProc callback
-        // Otherwise, use simulated waveform
+    // Only update every UPDATE_INTERVAL_FRAMES frames (30fps from 60fps)
+    if (frameCount % UPDATE_INTERVAL_FRAMES != 0) {
 #ifdef _WIN32
-        if (!audioCapturing) {
-#endif
-            // Shift bars to the left (oldest bar is removed)
-            for (int i = NUM_BARS - 1; i > 0; i--) {
-                waveformAmplitudes[i] = waveformAmplitudes[i - 1];
-            }
-            
-            // Generate new bar value by averaging 4410 samples (simulated)
-            static float phase = 0.0f;
-            phase += 0.1f; // Advance phase by 100ms
-            if (phase > 100.0f) phase -= 100.0f;
-            
-            float sumAmplitude = 0.0f;
-            int localSeed = audioSeed;
-            
-            // Average 4410 samples to get one bar value
-            for (int i = 0; i < SAMPLES_PER_BAR; i++) {
-                float t = (float)i / SAMPLES_PER_BAR + phase;
-                // Generate amplitude using sine waves at different frequencies
-                float amp1 = sinf(t * 2.0f * 3.14159f * 2.0f) * 0.5f + 0.5f; // Low frequency
-                float amp2 = sinf(t * 2.0f * 3.14159f * 5.0f) * 0.3f + 0.7f; // Mid frequency
-                float amp3 = ((localSeed % 100) / 100.0f) * 0.2f; // Random noise based on seed
-                localSeed = (localSeed * 1103515245 + 12345) & 0x7fffffff;
-                float sample = (amp1 * 0.5f + amp2 * 0.3f + amp3 * 0.2f);
-                sumAmplitude += sample;
-            }
-            
-            // Average the samples and store as new bar (leftmost position)
-            waveformAmplitudes[0] = sumAmplitude / SAMPLES_PER_BAR;
-#ifdef _WIN32
-        }
-        
-        // Send captured audio to Whisper STT every 3 seconds
+        // Still need to send audio to Whisper STT
+        static double accumulatedTime = 0.0;
+        accumulatedTime += deltaTime;
         static double lastSTTSend = 0.0;
         if (audioCapturing && accumulatedTime - lastSTTSend >= 3.0) {
             lastSTTSend = accumulatedTime;
-            
-            // Get captured samples (last 3 seconds)
             std::vector<short> samplesToSend = capturedSamples;
             if (samplesToSend.size() >= SAMPLES_TO_SEND) {
-                // Take last 3 seconds
                 samplesToSend.erase(samplesToSend.begin(), samplesToSend.begin() + (samplesToSend.size() - SAMPLES_TO_SEND));
             }
-            
-            // Send to Whisper STT on port 8070
             if (!samplesToSend.empty()) {
                 std::cout << "[DEBUG] Audio: Sending " << samplesToSend.size() << " samples to Whisper STT" << std::endl;
                 sendAudioToWhisper(samplesToSend, captureSampleRate, "localhost", 8070);
             }
         }
 #endif
+        return;
     }
+    
+    // Only process if we have real audio data
+    // Don't generate simulated data - if no audio is capturing, just skip update
+#ifdef _WIN32
+    if (!audioCapturing) {
+        // No audio capturing - don't update waveform, just return
+        return;
+    }
+#endif
+    
+    // Calculate RMS from current sample buffer (from real microphone)
+    float rms = calculateRMS();
+    
+    // Silence detection: if RMS is below threshold, treat as silence
+    if (rms < SILENCE_THRESHOLD) {
+        rms = 0.0f; // Set to zero for silence
+    }
+    
+    // Add RMS to history
+    rmsHistory.insert(rmsHistory.begin(), rms);
+    if (rmsHistory.size() > RMS_HISTORY_SIZE) {
+        rmsHistory.resize(RMS_HISTORY_SIZE);
+    }
+    
+    // Track max RMS from history
+    maxRMSSeen = 0.0001f; // Reset to small value
+    for (float h : rmsHistory) {
+        if (h > maxRMSSeen) {
+            maxRMSSeen = h;
+        }
+    }
+    
+    // Calculate heightPercent = rms / maxRMSSeen (0.0 to 1.0)
+    float heightPercent = (maxRMSSeen > 0.0001f) ? (rms / maxRMSSeen) : 0.0f;
+    
+    // Apply clamp threshold: if heightPercent < clampPercent, set to 0
+    if (heightPercent < CLAMP_THRESHOLD) {
+        heightPercent = 0.0f;
+    }
+    
+    // Calculate bar height (heightPercent * 1.6 as per spec, clamped to 1.0)
+    float barHeight = fminf(heightPercent * 1.6f, 1.0f);
+    
+    // Add new bar to history
+    addBar(barHeight);
+    
+#ifdef _WIN32
+    // Send captured audio to Whisper STT every 3 seconds
+    static double accumulatedTime = 0.0;
+    accumulatedTime += deltaTime * UPDATE_INTERVAL_FRAMES; // Account for frame skip
+    static double lastSTTSend = 0.0;
+    if (audioCapturing && accumulatedTime - lastSTTSend >= 3.0) {
+        lastSTTSend = accumulatedTime;
+        std::vector<short> samplesToSend = capturedSamples;
+        if (samplesToSend.size() >= SAMPLES_TO_SEND) {
+            samplesToSend.erase(samplesToSend.begin(), samplesToSend.begin() + (samplesToSend.size() - SAMPLES_TO_SEND));
+        }
+        if (!samplesToSend.empty()) {
+            std::cout << "[DEBUG] Audio: Sending " << samplesToSend.size() << " samples to Whisper STT" << std::endl;
+            sendAudioToWhisper(samplesToSend, captureSampleRate, "localhost", 8070);
+        }
+    }
+#endif
 }
 
 std::vector<float> getWaveformAmplitudes() {
-    return waveformAmplitudes;
+    // Return bar heights from history (convert BarData to float heights)
+    std::vector<float> heights;
+    heights.reserve(barHistory.size());
+    for (const auto& bar : barHistory) {
+        heights.push_back(bar.height);
+    }
+    return heights;
+}
+
+// Get audio device name
+std::string getAudioDeviceName() {
+    return audioDeviceName;
 }
 
 void cleanupAudio() {
@@ -269,24 +366,25 @@ static void CALLBACK waveInProc(HWAVEIN hWaveIn, UINT uMsg, DWORD_PTR dwInstance
                 capturedSamples.erase(capturedSamples.begin(), capturedSamples.begin() + (capturedSamples.size() - SAMPLES_TO_SEND));
             }
             
-            // Update waveform amplitudes from real audio data
+            // Convert captured short samples to float32 and add to circular buffer
+            // This feeds the RMS-based waveform system
             if (numSamples > 0) {
-                float sumAmplitude = 0.0f;
-                float maxAmplitude = 0.0f;
+                std::vector<float> floatSamples(numSamples);
                 for (int i = 0; i < numSamples; i++) {
-                    float normalized = (float)samples[i] / 32768.0f;
-                    sumAmplitude += fabsf(normalized);
-                    if (fabsf(normalized) > maxAmplitude) {
-                        maxAmplitude = fabsf(normalized);
-                    }
+                    // Convert 16-bit signed integer to float32 normalized range [-1.0, 1.0]
+                    floatSamples[i] = (float)samples[i] / 32768.0f;
                 }
-                float avgAmplitude = sumAmplitude / numSamples;
+                // Add samples to circular buffer for RMS calculation
+                updateAudioSamples(floatSamples.data(), numSamples);
                 
-                // Shift waveform bars and add new one
-                for (int i = NUM_BARS - 1; i > 0; i--) {
-                    waveformAmplitudes[i] = waveformAmplitudes[i - 1];
+                // Log periodically to verify real audio is being captured
+                static int callbackCount = 0;
+                callbackCount++;
+                if (callbackCount % 100 == 0) {
+                    // Log every 100 callbacks (roughly every few seconds)
+                    float currentRMS = calculateRMS();
+                    logAudio("Audio callback: " + std::to_string(numSamples) + " samples, RMS: " + std::to_string(currentRMS));
                 }
-                waveformAmplitudes[0] = maxAmplitude; // Use max amplitude for visual effect
             }
         }
         
@@ -314,6 +412,32 @@ bool initAudioCapture(int sampleRate) {
     wfx.nBlockAlign = wfx.nChannels * (wfx.wBitsPerSample / 8);
     wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign;
     wfx.cbSize = 0;
+    
+    // Get number of audio input devices and log default device info
+    UINT numDevices = waveInGetNumDevs();
+    std::cout << "[DEBUG] Audio: Found " << numDevices << " audio input device(s)" << std::endl;
+    
+    // Get and store default audio device info
+    audioDeviceName = "Unknown Device";
+    if (numDevices > 0) {
+        WAVEINCAPSA wic;
+        MMRESULT capsResult = waveInGetDevCapsA(WAVE_MAPPER, &wic, sizeof(WAVEINCAPSA));
+        if (capsResult == MMSYSERR_NOERROR) {
+            // szPname is already CHAR* (not wide) in WAVEINCAPSA
+            audioDeviceName = std::string(wic.szPname);
+            std::cout << "[DEBUG] Audio: Using default device: " << audioDeviceName << std::endl;
+            std::cout << "[DEBUG] Audio: Device supports " << (int)wic.wChannels << " channels" << std::endl;
+            
+            // Log to audio.log
+            logAudio("Audio capture initialized");
+            logAudio("Found " + std::to_string(numDevices) + " audio input device(s)");
+            logAudio("Using device: " + audioDeviceName);
+            logAudio("Device supports " + std::to_string((int)wic.wChannels) + " channels");
+            logAudio("Sample rate: " + std::to_string(sampleRate) + " Hz");
+        }
+    } else {
+        logAudio("Audio capture initialized - No audio devices found");
+    }
     
     // Open wave input device
     MMRESULT result = waveInOpen(&hWaveIn, WAVE_MAPPER, &wfx, (DWORD_PTR)waveInProc, 0, CALLBACK_FUNCTION);

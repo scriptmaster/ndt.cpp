@@ -43,13 +43,13 @@ ifeq ($(IS_WIN),1)
     endif
     # Fully static linking - bakes everything into the exe except Windows system DLLs
     # Use -static for all libraries to avoid DLL dependencies
-    LDFLAGS += -static -Wl,-Bstatic -lglfw3 -lwinpthread -Wl,-Bdynamic -lopengl32 -lgdi32 -lws2_32 -mwindows
+    LDFLAGS += -static -Wl,-Bstatic -lglfw3 -lwinpthread -Wl,-Bdynamic -lopengl32 -lgdi32 -lws2_32 -lwinmm -mwindows
     # Note: OpenGL32 and GDI32 are Windows system DLLs (always available on Windows)
 endif
 
 # Show configuration info
 TARGET = ndt_display
-SRCS = main.cpp display/logging.cpp display/window.cpp display/texture.cpp display/scene.cpp display/audio.cpp display/admin.cpp display/app.cpp display/render.cpp display/network.cpp
+SRCS = main.cpp display/logging.cpp display/window.cpp display/texture.cpp display/scene.cpp display/audio.cpp display/admin.cpp display/app.cpp display/render.cpp display/network.cpp display/scene_logger.cpp display/opening_scene.cpp
 OBJS = $(SRCS:.cpp=.o)
 
 # Add display directory to include path

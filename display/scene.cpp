@@ -1,4 +1,5 @@
 #include "scene.h"
+#include "scene_logger.h"
 #include "audio.h"
 #include <cstdio>  // For FILE, fopen, fclose, fgets, feof
 #include <sstream>
@@ -634,7 +635,7 @@ bool loadScene(const std::string& filename, Scene& scene) {
     return true;
 }
 
-void renderScene(const Scene& scene, int windowWidth, int windowHeight, float deltaTime) {
+void renderScene(const Scene& scene, int windowWidth, int windowHeight, float deltaTime, int frameCount) {
     try {
         // Calculate grid cell size
         if (scene.cols <= 0 || scene.rows <= 0 || windowWidth <= 0 || windowHeight <= 0) {
@@ -664,14 +665,10 @@ void renderScene(const Scene& scene, int windowWidth, int windowHeight, float de
     glClear(GL_COLOR_BUFFER_BIT);
     
     // Initialize background graphics if needed
-    std::cout << "[DEBUG] renderScene: Initializing background graphics..." << std::endl;
     initBackgroundGraphics(windowWidth, windowHeight);
-    std::cout << "[DEBUG] renderScene: Background graphics initialized" << std::endl;
     
     // Render background graphic procedure
-    std::cout << "[DEBUG] renderScene: Background graphic type: " << scene.bg.graphic << std::endl;
     if (scene.bg.graphic == "triangles") {
-        std::cout << "[DEBUG] renderScene: Rendering triangles..." << std::endl;
         renderTriangles(windowWidth, windowHeight, deltaTime);
     } else if (scene.bg.graphic == "dots_lines") {
         renderDotsWithLines(windowWidth, windowHeight, deltaTime);
@@ -679,10 +676,11 @@ void renderScene(const Scene& scene, int windowWidth, int windowHeight, float de
         renderBlurredOrbs(windowWidth, windowHeight, deltaTime);
     }
     
+    // Log scene render info (only on frame 0 and every 1000th frame)
+    logSceneRender(frameCount, windowWidth, windowHeight, 3, deltaTime, scene.bg.graphic, scene.widgets.size());
+    
     // Render widgets
-    std::cout << "[DEBUG] renderScene: Rendering " << scene.widgets.size() << " widgets..." << std::endl;
     for (const auto& widget : scene.widgets) {
-        std::cout << "[DEBUG] renderScene: Widget type: " << widget.type << std::endl;
         if (widget.type == "language_card") {
             // Calculate widget position and size in pixels
             float x = widget.col * cellWidth;
@@ -742,15 +740,15 @@ void renderScene(const Scene& scene, int windowWidth, int windowHeight, float de
         }
         }
         
-        // Render waveform widget if enabled (updated every 100ms, displayed at 60fps)
-        if (scene.waveform) {
-            try {
-                renderWaveformWidget(windowWidth, windowHeight);
-            } catch (const std::exception& e) {
-                std::cerr << "[ERROR] Exception rendering waveform: " << e.what() << std::endl;
-            } catch (...) {
-                std::cerr << "[ERROR] Unknown exception rendering waveform" << std::endl;
-            }
+        // Render waveform widget - always rendered in all scenes after loading screen
+        // Waveform is mandatory and shows audio amplitude values
+        // Updated every 100ms, displayed at 60fps
+        try {
+            renderWaveformWidget(windowWidth, windowHeight);
+        } catch (const std::exception& e) {
+            std::cerr << "[ERROR] Exception rendering waveform: " << e.what() << std::endl;
+        } catch (...) {
+            std::cerr << "[ERROR] Unknown exception rendering waveform" << std::endl;
         }
     } catch (const std::exception& e) {
         std::cerr << "[ERROR] Exception in renderScene: " << e.what() << std::endl;
@@ -760,32 +758,97 @@ void renderScene(const Scene& scene, int windowWidth, int windowHeight, float de
 }
 
 // Render waveform widget - vertical bars showing amplitude values
+// Renders from right to left (newest on right, oldest on left) with bar spacing of 0.006
 void renderWaveformWidget(int windowWidth, int windowHeight) {
-    std::vector<float> amplitudes = getWaveformAmplitudes();
-    if (amplitudes.empty()) return;
+    std::vector<float> barHeights = getWaveformAmplitudes();
+    if (barHeights.empty()) return;
     
     // Waveform positioned at bottom of screen
-    float waveformHeight = windowHeight * 0.15f; // 15% of screen height
+    float maxHeight = windowHeight * 0.15f; // 15% of screen height (maxHeight)
     float waveformY = 0.0f;
-    float waveformX = 0.0f;
-    float barWidth = (float)windowWidth / amplitudes.size();
+    
+    // Bar spacing: much closer together (reduced from 0.006 to 0.001)
+    // Convert to pixels: 0.001 * windowWidth
+    float barSpacing = 0.001f * windowWidth;
+    
+    // Fixed bar width per bar - make slightly wider for visibility
+    float barWidth = 3.0f; // Fixed 3px width per bar
     
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     
-    // Draw waveform bars
+    // Draw waveform bars from right to left (newest on right, oldest on left)
+    // barHeights[0] is newest, so it goes on the right
     glColor4f(0.2f, 0.8f, 1.0f, 0.8f); // Cyan color
-    for (size_t i = 0; i < amplitudes.size(); i++) {
-        float barHeight = amplitudes[i] * waveformHeight;
-        float x = waveformX + i * barWidth;
+    float x = windowWidth; // Start from right edge
+    
+    for (size_t i = 0; i < barHeights.size(); i++) {
+        // Calculate bar height from normalized height (0.0 to 1.0)
+        float barHeight = barHeights[i] * maxHeight;
         
-        glBegin(GL_QUADS);
-            glVertex2f(x, waveformY);
-            glVertex2f(x + barWidth * 0.8f, waveformY); // 80% width for spacing
-            glVertex2f(x + barWidth * 0.8f, waveformY + barHeight);
-            glVertex2f(x, waveformY + barHeight);
-        glEnd();
+        // Position bar: x starts at right, move left with spacing
+        float barX = x - barWidth - barSpacing;
+        
+        // Only render if bar is visible and has height
+        if (barX >= 0 && barHeight > 0.1f) {
+            glBegin(GL_QUADS);
+                glVertex2f(barX, waveformY);
+                glVertex2f(barX + barWidth, waveformY);
+                glVertex2f(barX + barWidth, waveformY + barHeight);
+                glVertex2f(barX, waveformY + barHeight);
+            glEnd();
+        }
+        
+        // Move left for next bar
+        x = barX;
+        
+        // Stop if we've gone off the left edge
+        if (x < 0) break;
     }
+    
+    glDisable(GL_BLEND);
+    
+    // Render device name at bottom right
+    renderDeviceNameLabel(windowWidth, windowHeight);
+}
+
+// Render device name label at bottom right
+void renderDeviceNameLabel(int windowWidth, int windowHeight) {
+    std::string deviceName = getAudioDeviceName();
+    if (deviceName.empty()) return;
+    
+    // Simple text rendering - draw a rectangle with device name approximation
+    // For now, draw a small rectangle as placeholder (proper text rendering would need font loading)
+    float labelWidth = deviceName.length() * 8.0f; // Approximate character width
+    float labelHeight = 20.0f;
+    float margin = 10.0f;
+    float labelX = windowWidth - labelWidth - margin;
+    float labelY = margin;
+    
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Draw semi-transparent background
+    glColor4f(0.0f, 0.0f, 0.0f, 0.5f); // Dark background
+    glBegin(GL_QUADS);
+        glVertex2f(labelX - 5.0f, labelY - 2.0f);
+        glVertex2f(windowWidth - 5.0f, labelY - 2.0f);
+        glVertex2f(windowWidth - 5.0f, labelY + labelHeight + 2.0f);
+        glVertex2f(labelX - 5.0f, labelY + labelHeight + 2.0f);
+    glEnd();
+    
+    // Draw text color (white)
+    glColor4f(1.0f, 1.0f, 1.0f, 0.9f);
+    
+    // Simplified text rendering - draw small rectangles for each character
+    // This is a placeholder - proper text rendering would need font loading
+    // For now, just draw a small rectangle indicator
+    glBegin(GL_QUADS);
+        glVertex2f(labelX, labelY);
+        glVertex2f(labelX + labelWidth, labelY);
+        glVertex2f(labelX + labelWidth, labelY + labelHeight);
+        glVertex2f(labelX, labelY + labelHeight);
+    glEnd();
     
     glDisable(GL_BLEND);
 }

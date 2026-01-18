@@ -15,18 +15,12 @@
 struct WindowData;
 
 /**
- * Initialize the audio system with error handling
- * Attempts to load audio seed from config file, falls back to default
+ * Initialize all application systems (logging, network, audio generation, audio capture)
+ * Coordinates initialization of multiple subsystems
  * @return true if initialization succeeded, false otherwise
  */
-bool initializeAudioSystem();
+bool initializeSystems();
 
-/**
- * Load the opening scene from JSON file (DEPRECATED - use lazy loading instead)
- * This function is no longer used - scenes are loaded lazily when needed
- * Kept for backward compatibility but should not be called
- */
-bool loadOpeningScene(Scene& openingScene);
 
 /**
  * Check if user requested application shutdown

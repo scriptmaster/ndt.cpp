@@ -50,7 +50,7 @@ void handleDisplayState(WindowData& wd, double currentTime, float& alpha);
  * @param alpha Alpha value for logo rendering
  * @param lastFrameTime Reference to last frame time for delta calculation
  */
-void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alpha, double& lastFrameTime);
+void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alpha, double& lastFrameTime, int frameCount);
 
 /**
  * Handle logo fade-in state
@@ -94,7 +94,7 @@ float handleLogoFadeOut(WindowData& wd, double elapsed, double currentTime);
  * @param fbHeight Framebuffer height in pixels
  * @param lastFrameTime Reference to last frame time for delta calculation
  */
-void handleOpeningScene(WindowData& wd, int fbWidth, int fbHeight, double& lastFrameTime);
+void handleOpeningScene(WindowData& wd, int fbWidth, int fbHeight, double& lastFrameTime, int frameCount);
 
 /**
  * Load opening scene lazily when entering OPENING_SCENE state

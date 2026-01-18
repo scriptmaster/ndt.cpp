@@ -36,7 +36,6 @@ void prepareWindowForRendering(const WindowData& wd, int& fbWidth, int& fbHeight
      * This is required for multi-monitor rendering
      */
     glfwMakeContextCurrent(wd.window);
-    std::cout << "[DEBUG] Context made current" << std::endl;
     
     /**
      * Get actual framebuffer size (handles high-DPI displays)
@@ -44,7 +43,6 @@ void prepareWindowForRendering(const WindowData& wd, int& fbWidth, int& fbHeight
      * This ensures we render at full resolution, not scaled down
      */
     glfwGetFramebufferSize(wd.window, &fbWidth, &fbHeight);
-    std::cout << "[DEBUG] Framebuffer size: " << fbWidth << "x" << fbHeight << std::endl;
     
     /**
      * Set background color based on monitor orientation
@@ -63,9 +61,7 @@ void prepareWindowForRendering(const WindowData& wd, int& fbWidth, int& fbHeight
      * This ensures a clean slate before rendering each frame
      * Must be done before any other rendering operations
      */
-    std::cout << "[DEBUG] Clearing screen..." << std::endl;
     glClear(GL_COLOR_BUFFER_BIT);
-    std::cout << "[DEBUG] Screen cleared" << std::endl;
 }
 
 /**
@@ -512,7 +508,7 @@ void loadOpeningSceneLazy(WindowData& wd) {
  * Loads scene on first access and shows loading indicator during load
  * Renders the opening scene with language selection cards once loaded
  */
-void handleOpeningScene(WindowData& wd, int fbWidth, int fbHeight, double& lastFrameTime) {
+void handleOpeningScene(WindowData& wd, int fbWidth, int fbHeight, double& lastFrameTime, int frameCount) {
     /**
      * Check if scene needs to be loaded
      * On first entry to OPENING_SCENE state, trigger lazy loading
@@ -562,7 +558,6 @@ void handleOpeningScene(WindowData& wd, int fbWidth, int fbHeight, double& lastF
      * Calculate delta time for animation and procedural graphics
      * Delta time is time since last frame in seconds
      */
-    std::cout << "[DEBUG] State: OPENING_SCENE (rendering loaded scene)" << std::endl;
     try {
         double currentFrameTime = glfwGetTime();
         float deltaTime = (float)(currentFrameTime - lastFrameTime);
@@ -577,16 +572,12 @@ void handleOpeningScene(WindowData& wd, int fbWidth, int fbHeight, double& lastF
             deltaTime = 0.016f; // Default to ~60fps frame time
         }
         
-        std::cout << "[DEBUG] DeltaTime: " << deltaTime << std::endl;
-        
         /**
          * Render the loaded scene
          * Scene rendering includes background graphics, widgets, and waveform
          * All rendering operations are wrapped in try-catch for safety
          */
-        std::cout << "[DEBUG] Calling renderScene..." << std::endl;
-        renderScene(*wd.openingScene, fbWidth, fbHeight, deltaTime);
-        std::cout << "[DEBUG] renderScene completed" << std::endl;
+        renderScene(*wd.openingScene, fbWidth, fbHeight, deltaTime, frameCount);
     } catch (const std::exception& e) {
         std::cerr << "[ERROR] Exception during OPENING_SCENE rendering: " << e.what() << std::endl;
     } catch (...) {
@@ -646,7 +637,7 @@ void handleDisplayState(WindowData& wd, double currentTime, float& alpha) {
  * Routes to appropriate renderer based on window state
  * Handles logo texture, scene rendering, admin mode, and error states
  */
-void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alpha, double& lastFrameTime) {
+void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alpha, double& lastFrameTime, int frameCount) {
     /**
      * Handle opening scene state
      * Opening scene renders language selection cards with procedural background
@@ -654,7 +645,7 @@ void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alph
      * Scene is loaded lazily on first access
      */
     if (wd.state == DisplayState::OPENING_SCENE) {
-        handleOpeningScene(wd, fbWidth, fbHeight, lastFrameTime);
+        handleOpeningScene(wd, fbWidth, fbHeight, lastFrameTime, frameCount);
         return; // Skip logo texture rendering for scene state
     }
     
@@ -711,7 +702,7 @@ void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alph
              * Scene is rendered using same renderer as opening scene
              */
             if (adminSceneLoaded) {
-                renderScene(adminScene, fbWidth, fbHeight, deltaTime);
+                renderScene(adminScene, fbWidth, fbHeight, deltaTime, frameCount);
             }
             
             /**
