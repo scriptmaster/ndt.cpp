@@ -377,7 +377,7 @@ zip:
 		echo "Error: version.h not found. Please ensure you're in the project root directory."; \
 		exit 1; \
 	fi; \
-	VERSION_STRING=$$(grep "define VERSION_STRING" version.h | awk '{print $$3}' | tr -d '"'); \
+	VERSION_STRING=$$(sed -n 's/.*#define VERSION_STRING \"\([^\"]*\)\".*/\1/p' version.h); \
 	if [ -z "$$VERSION_STRING" ]; then \
 		echo "Error: Could not extract version from version.h"; \
 		exit 1; \
@@ -393,13 +393,9 @@ zip:
 			-x "*.wixpdb" \
 			-x "*.log" \
 			-x ".git/*" \
-			-x ".git/**/*" \
 			-x "bin/*" \
-			-x "bin/**/*" \
 			-x "builds/*" \
-			-x "builds/**/*" \
 			-x "wix/build/*" \
-			-x "wix/build/**/*" \
 			-x "test_runner" \
 			-x "test_runner.exe" \
 			-x "$(TARGET)" \
@@ -412,7 +408,7 @@ zip:
 		echo "Error: 'zip' command not found."; \
 		echo "Please install the zip utility:"; \
 		echo "  - Ubuntu/Debian: sudo apt-get install zip"; \
-		echo "  - macOS: brew install zip (or use system zip)"; \
+		echo "  - macOS: zip is pre-installed"; \
 		echo "  - Windows/MSYS2: pacman -S zip"; \
 		exit 1; \
 	fi
