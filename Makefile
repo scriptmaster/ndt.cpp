@@ -373,7 +373,15 @@ msi: $(TARGET)
 # Zip target - create a downloadable zip of the entire codebase
 zip:
 	@echo "Creating codebase zip file..."
-	@VERSION_STRING=$$(grep "define VERSION_STRING" version.h | awk '{print $$3}' | tr -d '"'); \
+	@if [ ! -f version.h ]; then \
+		echo "Error: version.h not found. Please ensure you're in the project root directory."; \
+		exit 1; \
+	fi; \
+	VERSION_STRING=$$(grep "define VERSION_STRING" version.h | awk '{print $$3}' | tr -d '"'); \
+	if [ -z "$$VERSION_STRING" ]; then \
+		echo "Error: Could not extract version from version.h"; \
+		exit 1; \
+	fi; \
 	ZIP_NAME="ndt.cpp-v$$VERSION_STRING.zip"; \
 	echo "Creating $$ZIP_NAME..."; \
 	if command -v zip > /dev/null 2>&1; then \
@@ -401,7 +409,11 @@ zip:
 		echo "Success: Created $$ZIP_NAME"; \
 		ls -lh "$$ZIP_NAME"; \
 	else \
-		echo "Error: 'zip' command not found. Please install zip utility."; \
+		echo "Error: 'zip' command not found."; \
+		echo "Please install the zip utility:"; \
+		echo "  - Ubuntu/Debian: sudo apt-get install zip"; \
+		echo "  - macOS: brew install zip (or use system zip)"; \
+		echo "  - Windows/MSYS2: pacman -S zip"; \
 		exit 1; \
 	fi
 
