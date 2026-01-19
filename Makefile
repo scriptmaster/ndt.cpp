@@ -1,5 +1,3 @@
-.PHONY: all build
-
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -O2
 LDFLAGS =
@@ -413,4 +411,4 @@ zip:
 		exit 1; \
 	fi
 
-.PHONY: all clean setup-glfw msi vet zip FORCE
+.PHONY: all build clean setup-glfw msi vet zip FORCE
