@@ -370,4 +370,39 @@ msi: $(TARGET)
 	echo "MSI installer created: bin/builds/builds/app-v$$CURRENT_VERSION.msi"; \
 	rm -rf "$$BUILDDIR"
 
-.PHONY: all clean setup-glfw msi vet FORCE
+# Zip target - create a downloadable zip of the entire codebase
+zip:
+	@echo "Creating codebase zip file..."
+	@VERSION_STRING=$$(grep "define VERSION_STRING" version.h | awk '{print $$3}' | tr -d '"'); \
+	ZIP_NAME="ndt.cpp-v$$VERSION_STRING.zip"; \
+	echo "Creating $$ZIP_NAME..."; \
+	if command -v zip > /dev/null 2>&1; then \
+		zip -r "$$ZIP_NAME" . \
+			-x "*.o" \
+			-x "*.exe" \
+			-x "*.msi" \
+			-x "*.wixobj" \
+			-x "*.wixpdb" \
+			-x "*.log" \
+			-x ".git/*" \
+			-x ".git/**/*" \
+			-x "bin/*" \
+			-x "bin/**/*" \
+			-x "builds/*" \
+			-x "builds/**/*" \
+			-x "wix/build/*" \
+			-x "wix/build/**/*" \
+			-x "test_runner" \
+			-x "test_runner.exe" \
+			-x "$(TARGET)" \
+			-x "$(TARGET).exe" \
+			-x "$(TARGET).v*.exe" \
+			-x "ndt.cpp-v*.zip"; \
+		echo "Success: Created $$ZIP_NAME"; \
+		ls -lh "$$ZIP_NAME"; \
+	else \
+		echo "Error: 'zip' command not found. Please install zip utility."; \
+		exit 1; \
+	fi
+
+.PHONY: all clean setup-glfw msi vet zip FORCE
