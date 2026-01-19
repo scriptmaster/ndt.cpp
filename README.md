@@ -1,6 +1,15 @@
 
 # TECHNICAL DOCUMENTATION
 
+## Building and Distribution
+
+### Create Codebase Zip
+To create a downloadable zip file of the entire codebase:
+```bash
+make zip
+```
+This will create a versioned zip file (e.g., `ndt.cpp-v0.0.1.172.zip`) containing all source code, assets, and configuration files, excluding build artifacts, git history, and temporary files.
+
 1)
 
 # STORIES

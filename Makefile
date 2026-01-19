@@ -1,5 +1,3 @@
-.PHONY: all build
-
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -O2
 LDFLAGS =
@@ -370,4 +368,47 @@ msi: $(TARGET)
 	echo "MSI installer created: bin/builds/builds/app-v$$CURRENT_VERSION.msi"; \
 	rm -rf "$$BUILDDIR"
 
-.PHONY: all clean setup-glfw msi vet FORCE
+# Zip target - create a downloadable zip of the entire codebase
+zip:
+	@echo "Creating codebase zip file..."
+	@if [ ! -f version.h ]; then \
+		echo "Error: version.h not found. Please ensure you're in the project root directory."; \
+		exit 1; \
+	fi; \
+	VERSION_STRING=$$(sed -n 's/.*#define VERSION_STRING \"\([^\"]*\)\".*/\1/p' version.h); \
+	if [ -z "$$VERSION_STRING" ]; then \
+		echo "Error: Could not extract version from version.h"; \
+		exit 1; \
+	fi; \
+	ZIP_NAME="ndt.cpp-v$$VERSION_STRING.zip"; \
+	echo "Creating $$ZIP_NAME..."; \
+	if command -v zip > /dev/null 2>&1; then \
+		zip -r "$$ZIP_NAME" . \
+			-x "*.o" \
+			-x "*.exe" \
+			-x "*.msi" \
+			-x "*.wixobj" \
+			-x "*.wixpdb" \
+			-x "*.log" \
+			-x ".git/*" \
+			-x "bin/*" \
+			-x "builds/*" \
+			-x "wix/build/*" \
+			-x "test_runner" \
+			-x "test_runner.exe" \
+			-x "$(TARGET)" \
+			-x "$(TARGET).exe" \
+			-x "$(TARGET).v*.exe" \
+			-x "ndt.cpp-v*.zip"; \
+		echo "Success: Created $$ZIP_NAME"; \
+		ls -lh "$$ZIP_NAME"; \
+	else \
+		echo "Error: 'zip' command not found."; \
+		echo "Please install the zip utility:"; \
+		echo "  - Ubuntu/Debian: sudo apt-get install zip"; \
+		echo "  - macOS: zip is pre-installed"; \
+		echo "  - Windows/MSYS2: pacman -S zip"; \
+		exit 1; \
+	fi
+
+.PHONY: all build clean setup-glfw msi vet zip FORCE
