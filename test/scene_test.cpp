@@ -40,7 +40,7 @@ void TestSceneLoadCFileIO(test::TestContext& ctx) {
 // Test scene loading
 void TestSceneLoadValidJSON(test::TestContext& ctx) {
     Scene scene;
-    bool result = loadScene("scenes/opening.scene.json", scene);
+    bool result = loadScene("config/scenes/opening.scene.json", scene);
     ASSERT_TRUE(result);
     ASSERT_STR_EQ("opening_scene", scene.id);
     ASSERT_STR_EQ("grid", scene.layout);
@@ -50,7 +50,7 @@ void TestSceneLoadValidJSON(test::TestContext& ctx) {
 
 void TestSceneLoadInvalidFile(test::TestContext& ctx) {
     Scene scene;
-    bool result = loadScene("scenes/nonexistent.scene.json", scene);
+    bool result = loadScene("config/scenes/nonexistent.scene.json", scene);
     ASSERT_FALSE(result);
 }
 
@@ -82,7 +82,7 @@ void TestSceneLoadWithHexColor(test::TestContext& ctx) {
 
 void TestSceneLoadWithWidgets(test::TestContext& ctx) {
     Scene scene;
-    bool result = loadScene("scenes/opening.scene.json", scene);
+    bool result = loadScene("config/scenes/opening.scene.json", scene);
     ASSERT_TRUE(result);
     // The opening scene has 2 language card widgets
     // Check that widgets are loaded (at least 1)

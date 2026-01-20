@@ -49,19 +49,46 @@ endif
 
 # Show configuration info
 TARGET = ndt_display
-SRCS = main.cpp display/logging.cpp display/window.cpp display/texture.cpp display/scene.cpp display/audio.cpp display/admin.cpp display/app.cpp display/render.cpp display/network.cpp display/scene_logger.cpp display/opening_scene.cpp
+SRCS = src/App/main.cpp src/App/AppHost.cpp src/App/AdminUtils.cpp src/App/DI/ServiceCollection.cpp src/App/DI/ServiceProvider.cpp \
+       src/Services/LoggingService/LoggingService.cpp \
+       src/Services/LoggingService/Logging.cpp \
+       src/Services/LoggingService/SceneLogger.cpp \
+       src/Services/LocalConfigService/LocalConfigService.cpp \
+       src/Services/WindowService/WindowService.cpp \
+       src/Services/WindowService/WindowManager.cpp \
+       src/Services/WindowService/AppLoop.cpp \
+       src/Services/WindowService/Renderer.cpp \
+       src/Services/WindowService/TextureLoader.cpp \
+       src/Services/WindowService/SceneHelpers.cpp \
+       src/Services/WindowService/BackgroundGraphics.cpp \
+       src/Services/WindowService/BackgroundTriangles.cpp \
+       src/Services/WindowService/BackgroundDots.cpp \
+       src/Services/WindowService/BackgroundOrbs.cpp \
+       src/Services/WindowService/SceneLoader.cpp \
+       src/Services/WindowService/SceneRenderer.cpp \
+       src/Services/WindowService/Admin.cpp \
+       src/Services/AudioService/AudioService.cpp \
+       src/Services/AudioService/AudioSystem.cpp \
+       src/Services/AudioService/AudioCapture.cpp \
+       src/Services/AudioService/AudioWaveform.cpp \
+       src/Services/NetworkService/NetworkSystem.cpp \
+       src/Services/HTTPService/HTTPService.cpp \
+       src/Services/WSService/WSService.cpp \
+       src/Services/STTService/STTService.cpp \
+       src/Services/LLMService/LLMService.cpp \
+       src/Services/TTSService/TTSService.cpp
 OBJS = $(SRCS:.cpp=.o)
 
-# Add display directory to include path
-CXXFLAGS += -Idisplay
+# Add directories to include path
+CXXFLAGS += -Isrc -Isrc/App -Isrc/Services
 
 all: $(TARGET) run
 
 # Extract and increment version
-VERSION_MAJOR := $(shell grep "define VERSION_MAJOR" version.h | awk '{print $$3}')
-VERSION_MINOR := $(shell grep "define VERSION_MINOR" version.h | awk '{print $$3}')
-VERSION_PATCH := $(shell grep "define VERSION_PATCH" version.h | awk '{print $$3}')
-VERSION_BUILD := $(shell grep "define VERSION_BUILD" version.h | awk '{print $$3}')
+VERSION_MAJOR := $(shell grep "define VERSION_MAJOR" src/App/version.h | awk '{print $$3}')
+VERSION_MINOR := $(shell grep "define VERSION_MINOR" src/App/version.h | awk '{print $$3}')
+VERSION_PATCH := $(shell grep "define VERSION_PATCH" src/App/version.h | awk '{print $$3}')
+VERSION_BUILD := $(shell grep "define VERSION_BUILD" src/App/version.h | awk '{print $$3}')
 VERSION_BUILD_NEW := $(shell echo $$(( $(VERSION_BUILD) + 1 )))
 VERSION_STRING := $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).$(VERSION_BUILD_NEW)
 
@@ -72,21 +99,21 @@ vet-pass:
 	@echo "Success: Code quality checks passed. Proceeding with version bump..."
 
 # Update version.h before build (only after vet passes)
-version.h: vet-pass FORCE
+src/App/version.h: vet-pass FORCE
 	@echo "Incrementing version: $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).$(VERSION_BUILD) -> $(VERSION_STRING)"
-	@echo "#ifndef VERSION_H" > version.h
-	@echo "#define VERSION_H" >> version.h
-	@echo "" >> version.h
-	@echo "#define VERSION_MAJOR $(VERSION_MAJOR)" >> version.h
-	@echo "#define VERSION_MINOR $(VERSION_MINOR)" >> version.h
-	@echo "#define VERSION_PATCH $(VERSION_PATCH)" >> version.h
-	@echo "#define VERSION_BUILD $(VERSION_BUILD_NEW)" >> version.h
-	@echo "" >> version.h
-	@echo "#define VERSION_STRING \"$(VERSION_STRING)\"" >> version.h
-	@echo "" >> version.h
-	@echo "#endif // VERSION_H" >> version.h
+	@echo "#ifndef VERSION_H" > src/App/version.h
+	@echo "#define VERSION_H" >> src/App/version.h
+	@echo "" >> src/App/version.h
+	@echo "#define VERSION_MAJOR $(VERSION_MAJOR)" >> src/App/version.h
+	@echo "#define VERSION_MINOR $(VERSION_MINOR)" >> src/App/version.h
+	@echo "#define VERSION_PATCH $(VERSION_PATCH)" >> src/App/version.h
+	@echo "#define VERSION_BUILD $(VERSION_BUILD_NEW)" >> src/App/version.h
+	@echo "" >> src/App/version.h
+	@echo "#define VERSION_STRING \"$(VERSION_STRING)\"" >> src/App/version.h
+	@echo "" >> src/App/version.h
+	@echo "#endif // VERSION_H" >> src/App/version.h
 
-build: version.h $(OBJS)
+build: src/App/version.h $(OBJS)
 	@mkdir -p bin
 	@mkdir -p bin/builds/builds config
 	@if [ ! -f config/audio_seed.txt ]; then \
@@ -176,10 +203,10 @@ $(TARGET): build
 
 run:
 	@echo "Running latest versioned executable"
-	@LATEST_VERSION=$$(grep "define VERSION_BUILD" version.h | awk '{print $$3}'); \
-	VERSION_MAJOR=$$(grep "define VERSION_MAJOR" version.h | awk '{print $$3}'); \
-	VERSION_MINOR=$$(grep "define VERSION_MINOR" version.h | awk '{print $$3}'); \
-	VERSION_PATCH=$$(grep "define VERSION_PATCH" version.h | awk '{print $$3}'); \
+	@LATEST_VERSION=$$(grep "define VERSION_BUILD" src/App/version.h | awk '{print $$3}'); \
+	VERSION_MAJOR=$$(grep "define VERSION_MAJOR" src/App/version.h | awk '{print $$3}'); \
+	VERSION_MINOR=$$(grep "define VERSION_MINOR" src/App/version.h | awk '{print $$3}'); \
+	VERSION_PATCH=$$(grep "define VERSION_PATCH" src/App/version.h | awk '{print $$3}'); \
 	VERSION_STRING="$$VERSION_MAJOR.$$VERSION_MINOR.$$VERSION_PATCH.$$LATEST_VERSION"; \
 	VERSIONED_EXE="$(TARGET).v$$VERSION_STRING.exe"; \
 	VERSIONED_EXE_BUILDS="bin/builds/builds/v$$VERSION_STRING.exe"; \
@@ -216,7 +243,7 @@ run:
 vet:
 	@echo "Running code quality checks..."
 	@ERRORS=0; \
-	for file in main.cpp display/*.cpp display/*.h; do \
+	for file in src/App/main.cpp; do \
 		if [ -f "$$file" ]; then \
 			echo "Checking $$file..."; \
 			$(CXX) $(CXXFLAGS) -c "$$file" -o /dev/null 2>&1 | grep -i "error" && ERRORS=$$((ERRORS + 1)) || true; \
@@ -238,31 +265,110 @@ test: $(TEST_TARGET)
 	@echo "Running tests..."
 	@./$(TEST_TARGET)
 
-$(TEST_TARGET): $(TEST_OBJS) display/scene.o display/audio.o display/logging.o
+$(TEST_TARGET): $(TEST_OBJS) archive/scene.o.old archive/audio.o.old archive/logging.o.old
 	@echo "Building test runner..."
 	@# For tests, link OpenGL libraries (scene.cpp uses OpenGL functions)
 	@# Use -Wl,--whole-archive to ensure all symbols are included (helps with static initialization)
-	@if [ -f display/scene.o ] && [ -f display/audio.o ] && [ -f display/logging.o ]; then \
-		$(CXX) $(CXXFLAGS) -o $(TEST_TARGET) $(TEST_OBJS) display/scene.o display/audio.o display/logging.o -L./lib -Wl,--whole-archive -static-libgcc -static-libstdc++ -Wl,--no-whole-archive -lopengl32 -lgdi32; \
+	@if [ -f archive/scene.o.old ] && [ -f archive/audio.o.old ] && [ -f archive/logging.o.old ]; then \
+		$(CXX) $(CXXFLAGS) -o $(TEST_TARGET) $(TEST_OBJS) archive/scene.o.old archive/audio.o.old archive/logging.o.old -L./lib -Wl,--whole-archive -static-libgcc -static-libstdc++ -Wl,--no-whole-archive -lopengl32 -lgdi32; \
 	else \
-		$(CXX) $(CXXFLAGS) -c display/scene.cpp -o display/scene.o; \
-		$(CXX) $(CXXFLAGS) -c display/audio.cpp -o display/audio.o; \
-		$(CXX) $(CXXFLAGS) -c display/logging.cpp -o display/logging.o; \
-		$(CXX) $(CXXFLAGS) -o $(TEST_TARGET) $(TEST_OBJS) display/scene.o display/audio.o display/logging.o -L./lib -Wl,--whole-archive -static-libgcc -static-libstdc++ -Wl,--no-whole-archive -lopengl32 -lgdi32; \
+		$(CXX) $(CXXFLAGS) -c archive/scene.cpp.old -o archive/scene.o.old; \
+		$(CXX) $(CXXFLAGS) -c archive/audio.cpp.old -o archive/audio.o.old; \
+		$(CXX) $(CXXFLAGS) -c archive/logging.cpp.old -o archive/logging.o.old; \
+		$(CXX) $(CXXFLAGS) -o $(TEST_TARGET) $(TEST_OBJS) archive/scene.o.old archive/audio.o.old archive/logging.o.old -L./lib -Wl,--whole-archive -static-libgcc -static-libstdc++ -Wl,--no-whole-archive -lopengl32 -lgdi32; \
 	fi
 	@echo "Test runner built successfully"
 
 test/%.o: test/%.cpp test/test.h
 	@mkdir -p test
-	$(CXX) $(CXXFLAGS) -Itest -I. -Idisplay -c $< -o $@
+	$(CXX) $(CXXFLAGS) -Itest -I. -Isrc -c $< -o $@
 
 clean-test:
 	rm -f $(TEST_OBJS) $(TEST_TARGET) test_*.json test_*.txt
 
-clean: clean-test
+# Audio device test target
+AUDIO_TEST_TARGET = audio_test
+AUDIO_TEST_SRC = test/audio_device_test.cpp
+AUDIO_TEST_ORCHESTRATOR_SRC = test/AudioCapture/AudioCaptureOrchestrator.cpp
+AUDIO_TEST_RMS_SRC = test/AudioCapture/RMSAnalyzer.cpp
+AUDIO_TEST_NOISE_SRC = test/AudioCapture/NoiseCalibrator.cpp
+AUDIO_TEST_GATE_SRC = test/AudioCapture/SpeechGate.cpp
+AUDIO_TEST_BUFFER_SRC = test/AudioCapture/AudioSegmentBuffer.cpp
+AUDIO_TEST_OBJ = $(AUDIO_TEST_SRC:.cpp=.o) \
+                 $(AUDIO_TEST_ORCHESTRATOR_SRC:.cpp=.o) \
+                 $(AUDIO_TEST_RMS_SRC:.cpp=.o) \
+                 $(AUDIO_TEST_NOISE_SRC:.cpp=.o) \
+                 $(AUDIO_TEST_GATE_SRC:.cpp=.o) \
+                 $(AUDIO_TEST_BUFFER_SRC:.cpp=.o)
 
-clean:
-	rm -f $(OBJS) $(TARGET)
+audio: $(AUDIO_TEST_TARGET)
+	@echo "Running audio device test..."
+	@mkdir -p logs
+	@./$(AUDIO_TEST_TARGET)
+
+$(AUDIO_TEST_TARGET): $(AUDIO_TEST_OBJ)
+	@echo "Building audio device test..."
+	@mkdir -p logs
+ifeq ($(IS_WIN),1)
+	$(CXX) $(CXXFLAGS) -o $(AUDIO_TEST_TARGET) $(AUDIO_TEST_OBJ) -lwinmm -mconsole
+else
+	$(CXX) $(CXXFLAGS) -o $(AUDIO_TEST_TARGET) $(AUDIO_TEST_OBJ)
+endif
+	@echo "Audio test built successfully"
+
+test/audio_device_test.o: test/audio_device_test.cpp
+	@mkdir -p test
+	$(CXX) $(CXXFLAGS) -Itest -I. -Isrc -c $< -o $@
+
+test/AudioCapture/%.o: test/AudioCapture/%.cpp
+	@mkdir -p test/AudioCapture
+	$(CXX) $(CXXFLAGS) -Itest -I. -Isrc -c $< -o $@
+
+# Audio UI test target
+AUDIO_UI_TEST_TARGET = audio_ui_test
+AUDIO_UI_TEST_SRC = test/audio_ui_test.cpp
+AUDIO_UI_TEST_OBJ = $(AUDIO_UI_TEST_SRC:.cpp=.o)
+
+audioui: $(AUDIO_UI_TEST_TARGET)
+	@echo "Audio UI test built (run ./audio_ui_test to launch)"
+
+$(AUDIO_UI_TEST_TARGET): $(AUDIO_UI_TEST_OBJ)
+	@echo "Building audio UI test..."
+ifeq ($(IS_WIN),1)
+	$(CXX) $(CXXFLAGS) -o $(AUDIO_UI_TEST_TARGET) $(AUDIO_UI_TEST_OBJ) -L./lib -Wl,-Bstatic -lglfw3 -lwinpthread -Wl,-Bdynamic -lopengl32 -lgdi32 -lwinmm -mwindows
+else
+	$(CXX) $(CXXFLAGS) -o $(AUDIO_UI_TEST_TARGET) $(AUDIO_UI_TEST_OBJ) $(LDFLAGS)
+endif
+	@echo "Audio UI test ready: ./$(AUDIO_UI_TEST_TARGET)"
+
+test/audio_ui_test.o: test/audio_ui_test.cpp
+	@mkdir -p test
+	$(CXX) $(CXXFLAGS) -Itest -I. -Isrc -c $< -o $@
+
+# UI test target
+UI_TEST_TARGET = ui_test
+UI_TEST_SRC = test/ui_test.cpp
+UI_TEST_OBJ = $(UI_TEST_SRC:.cpp=.o)
+
+uitest: $(UI_TEST_TARGET)
+	@echo "Running UI test..."
+	@./$(UI_TEST_TARGET)
+
+$(UI_TEST_TARGET): $(UI_TEST_OBJ)
+	@echo "Building UI test..."
+ifeq ($(IS_WIN),1)
+	$(CXX) $(CXXFLAGS) -o $(UI_TEST_TARGET) $(UI_TEST_OBJ) -L./lib -Wl,-Bstatic -lglfw3 -lwinpthread -Wl,-Bdynamic -lopengl32 -lgdi32 -mwindows
+else
+	$(CXX) $(CXXFLAGS) -o $(UI_TEST_TARGET) $(UI_TEST_OBJ) $(LDFLAGS)
+endif
+	@echo "UI test built successfully"
+
+test/ui_test.o: test/ui_test.cpp
+	@mkdir -p test
+	$(CXX) $(CXXFLAGS) -Itest -I. -Isrc -I./include -c $< -o $@
+
+clean: clean-test
+	rm -f $(OBJS) $(TARGET) $(AUDIO_TEST_TARGET) $(AUDIO_TEST_OBJ) $(UI_TEST_TARGET) $(UI_TEST_OBJ)
 
 # Windows-specific: Setup GLFW
 setup-glfw:
@@ -338,8 +444,8 @@ msi: $(TARGET)
 		exit 1; \
 	fi; \
 	\
-	# Read current version from version.h \
-	CURRENT_VERSION=$$(grep "define VERSION_STRING" version.h | awk '{print $$3}' | tr -d '"'); \
+	# Read current version from src/App/version.h \
+	CURRENT_VERSION=$$(grep "define VERSION_STRING" src/App/version.h | awk '{print $$3}' | tr -d '"'); \
 	\
 	# Update version in WXS file \
 	sed "s/\$(var.ProductVersion)/$$CURRENT_VERSION/g" wix/installer.wxs > "$$BUILDDIR/installer.wxs"; \
