@@ -1,6 +1,8 @@
 #include "Scene.h"
 #include "SceneHelpers.h"
 #include "BackgroundGraphics.h"
+#include "../AudioCaptureService/AudioWaveform.h"
+#include "../AudioCaptureService/AudioCapture.h"
 #include <iostream>
 #include <cmath>
 #include <vector>
@@ -16,8 +18,6 @@
 // Forward declarations for dependencies to be ported
 extern void logSceneRender(int frameCount, int fbWidth, int fbHeight, int state, 
                            float deltaTime, const std::string& bgGraphic, int widgetCount);
-extern std::vector<float> getWaveformAmplitudes();
-extern std::string getAudioDeviceName();
 
 /**
  * SceneRenderer - Scene rendering functions
@@ -127,8 +127,8 @@ void renderWaveformWidget(int windowWidth, int windowHeight) {
     std::vector<float> barHeights = getWaveformAmplitudes();
     if (barHeights.empty()) return;
     
-    float maxHeight = windowHeight * 0.15f;
-    float waveformY = 0.0f;
+    float widgetHeight = windowHeight * 0.12f;
+    float widgetBottom = 0.0f;
     float barSpacing = 0.001f * windowWidth;
     float barWidth = 3.0f;
     
@@ -138,15 +138,16 @@ void renderWaveformWidget(int windowWidth, int windowHeight) {
     float x = windowWidth;
     
     for (size_t i = 0; i < barHeights.size(); i++) {
-        float barHeight = barHeights[i] * maxHeight;
+        float barHeight = barHeights[i] * widgetHeight;
         float barX = x - barWidth - barSpacing;
+        float barY = widgetBottom + (widgetHeight - barHeight) * 0.5f;
         
         if (barX >= 0 && barHeight > 0.1f) {
             glBegin(GL_QUADS);
-                glVertex2f(barX, waveformY);
-                glVertex2f(barX + barWidth, waveformY);
-                glVertex2f(barX + barWidth, waveformY + barHeight);
-                glVertex2f(barX, waveformY + barHeight);
+                glVertex2f(barX, barY);
+                glVertex2f(barX + barWidth, barY);
+                glVertex2f(barX + barWidth, barY + barHeight);
+                glVertex2f(barX, barY + barHeight);
             glEnd();
         }
         

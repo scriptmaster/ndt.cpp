@@ -1,5 +1,8 @@
 #include "AppHost.h"
 #include "DI/ServiceCollection.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 /**
  * Main application entry point
@@ -12,7 +15,7 @@
  * Logging-first invariant: LoggingService constructor calls initLogging()
  * No output is produced before LoggingService is constructed
  */
-int main() {
+int app_main() {
     // Create service collection and app host
     ServiceCollection services;
     AppHost host;
@@ -27,5 +30,18 @@ int main() {
     }
     
     // Run application lifecycle (Start → RunLoop → Stop)
-    return host.Run();
+    host.Run();
+
+    // std::cout << "Hello, World!" << std::endl;
+    return 0;
 }
+
+#ifdef _WIN32
+int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
+    return app_main();
+}
+#else
+int main() {
+    return app_main();
+}
+#endif

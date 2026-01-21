@@ -273,9 +273,13 @@ bool ServiceProvider::StopServices() {
     bool allStopped = true;
     
     for (auto it = servicesOrdered_.rbegin(); it != servicesOrdered_.rend(); ++it) {
+        const char* serviceName = typeid(**it).name();
+        std::cout << "[DEBUG] Stopping service: " << serviceName << std::endl;
         try {
             (*it)->Stop();
+            std::cout << "[DEBUG] Service stopped: " << serviceName << std::endl;
         } catch (...) {
+            std::cerr << "[ERROR] Service stop failed: " << serviceName << std::endl;
             // Continue stopping other services even if one fails
             allStopped = false;
         }

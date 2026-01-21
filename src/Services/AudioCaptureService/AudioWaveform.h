@@ -18,4 +18,10 @@ int getWaveformUpdateFPS();
 void updateAudioSamples(const float* samples, int numSamples);
 float calculateRMS();
 
+// Frame update entrypoint (called from main loop)
+void updateAudio(float deltaTime);
+
+// Render consumption
+std::vector<float> getWaveformAmplitudes();
+
 #endif // AUDIO_WAVEFORM_H

@@ -82,6 +82,7 @@ void window_iconify_callback(GLFWwindow* window, int iconified) {
 // Mouse button callback - handle clicks for audio seed change (double-click) and fade-out trigger (any click)
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (!window || button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS) return;
+    (void)mods;
     
     // Get isPrimary flag from user pointer
     void* userPtr = glfwGetWindowUserPointer(window);
@@ -94,6 +95,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     glfwGetCursorPos(window, &xpos, &ypos);
     
     double currentTime = glfwGetTime();
+    (void)currentTime;
     
     // Find the WindowData for this window to update click state
     // We'll need to access it from main.cpp, so for now just store in a static map
@@ -303,10 +305,9 @@ std::vector<WindowData> createWindows() {
             wd.fadeStartTime = glfwGetTime();  // Record start time
             wd.stateStartTime = wd.fadeStartTime;
             /**
-             * Start with logo immediately visible (skip fade-in)
-             * Logo shows instantly, and scene loading starts on click/touch
+             * Start with logo fade-in for smoother appearance
              */
-            wd.state = DisplayState::LOGO_SHOWING;
+            wd.state = DisplayState::LOGO_FADE_IN;
             wd.audioSeed = 12345;  // Default seed, will be loaded from config
             wd.clickDetected = false;
             wd.lastClickTime = 0.0;
@@ -361,6 +362,10 @@ std::vector<WindowData> createWindows() {
         wd.textureWidth = texInfo.width;
         wd.textureHeight = texInfo.height;
         wd.isValid = (wd.texture != 0);
+        // Start fade-in after texture is ready to avoid a visible blink
+        wd.fadeStartTime = glfwGetTime();
+        wd.stateStartTime = wd.fadeStartTime;
+        wd.state = DisplayState::LOGO_FADE_IN;
         
         if (!wd.isValid) {
             std::cerr << "Warning: Failed to load texture for " << wd.logoPath << std::endl;

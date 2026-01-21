@@ -2,12 +2,17 @@
 #define STTSERVICE_H
 
 #include "ISTTService.h"
+#include <cstdint>
+#include <string>
+#include <vector>
 
 /**
  * STTService - Speech-to-Text service implementation
  * 
- * Stub implementation for future Whisper STT functionality
+ * Realtime Whisper STT
  */
+struct whisper_context;
+
 class STTService : public ISTTService {
 public:
     STTService();
@@ -16,6 +21,16 @@ public:
     void Configure() override;
     bool Start() override;
     void Stop() override;
+
+    std::string Transcribe(const std::vector<float>& samples) override;
+    std::string Transcribe(const float* samples, int count) override;
+    std::string Transcribe(const int16_t* samples, int count) override;
+    static STTService* GetInstance();
+
+private:
+    static STTService* instance_;
+    struct whisper_context* ctx_;
+    std::string modelPath_;
 };
 
 #endif // STTSERVICE_H

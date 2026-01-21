@@ -3,6 +3,7 @@
 #include "TextureLoader.h"
 #include "WindowManager.h"
 #include "AppLoop.h"
+#include "../LoggingService/SceneLogger.h"
 #include "../../App/AdminUtils.h"
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -12,7 +13,7 @@
  * Manages GLFW windows and main loop
  */
 
-WindowService::WindowService() : isAdmin_(false) {
+WindowService::WindowService() : isAdmin_(false), stopped_(true) {
 }
 
 WindowService::~WindowService() {
@@ -46,6 +47,8 @@ bool WindowService::Start() {
             return false;
         }
         
+        initSceneLogger();
+        stopped_ = false;
         SetAdminStatus(isAdmin_);
         SetVSync(1); // Enable VSync by default
         return true;
@@ -56,7 +59,14 @@ bool WindowService::Start() {
 }
 
 void WindowService::Stop() {
+    if (stopped_) {
+        return;
+    }
+    std::cout << "[DEBUG] Stopping window service..." << std::endl;
+    cleanupSceneLogger();
     cleanupWindows(windows_);
+    stopped_ = true;
+    std::cout << "[DEBUG] Window service stopped - SUCCESS" << std::endl;
 }
 
 std::vector<WindowData>& WindowService::GetWindows() {

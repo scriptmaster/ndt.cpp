@@ -5,8 +5,15 @@
 #include "../Services/LocalConfigService/LocalConfigService.h"
 #include "../Services/WindowService/IWindowService.h"
 #include "../Services/WindowService/WindowService.h"
-#include "../Services/AudioService/IAudioService.h"
-#include "../Services/AudioService/AudioService.h"
+#include "../Services/WindowService/TestWindowService.h"
+#include "../Services/AudioPlayerService/IAudioPlayerService.h"
+#include "../Services/AudioPlayerService/AudioPlayerService.h"
+#include "../Services/NetworkService/INetworkService.h"
+#include "../Services/NetworkService/NetworkService.h"
+#include "../Services/AudioProcessorService/IAudioProcessorService.h"
+#include "../Services/AudioProcessorService/AudioProcessorService.h"
+#include "../Services/AudioCaptureService/IAudioCaptureService.h"
+#include "../Services/AudioCaptureService/AudioCaptureService.h"
 #include "../Services/HTTPService/IHTTPService.h"
 #include "../Services/HTTPService/HTTPService.h"
 #include "../Services/WSService/IWSService.h"
@@ -17,7 +24,9 @@
 #include "../Services/LLMService/LLMService.h"
 #include "../Services/TTSService/ITTSService.h"
 #include "../Services/TTSService/TTSService.h"
+#include <cstdlib>
 #include <iostream>
+#include <string>
 
 /**
  * AppHost implementation
@@ -35,7 +44,7 @@ AppHost::~AppHost() {
 void AppHost::ConfigureServices(ServiceCollection& services) {
     /**
      * Register all services
-     * CRITICAL: LoggingService MUST be registered FIRST
+     * LoggingService MUST be registered FIRST
      * LoggingService constructor calls initLogging() immediately
      * Other services may only output after LoggingService is constructed
      */
@@ -47,13 +56,28 @@ void AppHost::ConfigureServices(ServiceCollection& services) {
     // STEP 2: Register LocalConfigService (loads config files)
     services.Register<ILocalConfigService, LocalConfigService>();
     
-    // STEP 3: Register WindowService (manages GLFW windows and main loop)
-    services.Register<IWindowService, WindowService>();
+    // STEP 3: Register WindowService (test mode uses TestWindowService)
+    const char* envMode = std::getenv("ENV");
+    bool isTestMode = envMode && std::string(envMode) == "test";
+    if (isTestMode) {
+        services.Register<IWindowService, TestWindowService>();
+    } else {
+        services.Register<IWindowService, WindowService>();
+    }
     
-    // STEP 4: Register AudioService (manages audio generation and capture)
-    services.Register<IAudioService, AudioService>();
+    // STEP 4: Register AudioPlayerService (audio seed + waveform)
+    services.Register<IAudioPlayerService, AudioPlayerService>();
     
-    // STEP 5: Register stub services (future functionality)
+    // STEP 5: Register NetworkService (network init before capture)
+    services.Register<INetworkService, NetworkService>();
+    
+    // STEP 6: Register AudioCaptureService (microphone capture)
+    services.Register<IAudioCaptureService, AudioCaptureService>();
+    
+    // STEP 7: Register AudioProcessorService (speech chunking)
+    services.Register<IAudioProcessorService, AudioProcessorService>();
+    
+    // STEP 8: Register stub services (future functionality)
     services.Register<IHTTPService, HTTPService>();
     services.Register<IWSService, WSService>();
     services.Register<ISTTService, STTService>();
@@ -141,7 +165,13 @@ int AppHost::Run() {
         std::cerr << "[ERROR] WindowService not available" << std::endl;
         runResult = -1;
     }
-    
+
+    if (windowService) {
+        std::cout << "[DEBUG] Explicitly stopping WindowService..." << std::endl;
+        windowService->Stop();
+        std::cout << "[DEBUG] WindowService stopped via AppHost" << std::endl;
+    }
+
     // STEP 7: Stop all services in reverse order
     // ServiceProvider destructor will call StopServices() on all services
     // But we call explicitly for proper error handling

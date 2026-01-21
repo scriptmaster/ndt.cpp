@@ -27,6 +27,7 @@ public:
 private:
     std::vector<WindowData> windows_;
     bool isAdmin_;
+    bool stopped_;
 };
 
 #endif // WINDOWSERVICE_H

@@ -17,6 +17,11 @@ void startAudioCapture();
 void stopAudioCapture();
 bool isAudioCapturing();
 std::vector<short> getCapturedAudioSamples();
+std::string getAudioDeviceName();
+int getAudioCaptureDeviceIndex();
+bool setAudioCaptureDeviceIndex(int index);
+int getAudioCaptureCallbackCount();
+int getAudioCaptureZeroByteCount();
 
 // List all available audio devices (logs all devices, not just default)
 void listAllAudioDevices();

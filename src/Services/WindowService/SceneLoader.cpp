@@ -63,7 +63,8 @@ bool loadScene(const std::string& filename, Scene& scene) {
             if (!line.empty() && line.back() == '\r') line.pop_back();
             line = trim(line);
             
-            if (line.empty() || line[0] == '{' || line[0] == '}') continue;
+            if (line.empty()) continue;
+            if ((line[0] == '{' || line[0] == '}') && !inWidgets && !inBg) continue;
             
             if (line.find("\"id\"") != std::string::npos) {
                 scene.id = extractStringValue(line);

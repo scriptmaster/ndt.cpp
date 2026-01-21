@@ -9,7 +9,10 @@
 class ILoggingService;
 class ILocalConfigService;
 class IWindowService;
-class IAudioService;
+class IAudioPlayerService;
+class INetworkService;
+class IAudioProcessorService;
+class IAudioCaptureService;
 
 /**
  * AppHost - Application Host

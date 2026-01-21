@@ -1,18 +1,28 @@
 #include "test.h"
-#include "../display/audio.h"
+#include "../src/Services/AudioPlayerService/AudioGeneration.h"
+#include "../src/Services/AudioPlayerService/AudioSeed.h"
+#include "../src/Services/AudioCaptureService/AudioWaveform.h"
 #include <cstdio>
 #include <fstream>
 
+#ifdef _WIN32
+// Test stub to satisfy AudioWaveform dependency on Windows-only capture check.
+bool isAudioCapturing() {
+    return true;
+}
+#endif
+
 void TestAudioInit(test::TestContext& ctx) {
-    initAudio(12345);
-    int seed = getAudioSeed();
-    ASSERT_EQ(12345, seed);
+    initAudioGeneration(12345);
+    setAudioSeed(12345);
+    ASSERT_TRUE(isAudioGenerationInitialized());
+    ASSERT_EQ(12345, getAudioSeed());
     cleanupAudio();
 }
 
 void TestAudioSeedPersistence(test::TestContext& ctx) {
     // Test seed save/load
-    initAudio(99999);
+    initAudioGeneration(99999);
     setAudioSeed(88888);
     bool saved = saveAudioSeed("test_audio_seed.txt");
     ASSERT_TRUE(saved);
@@ -30,7 +40,7 @@ void TestAudioSeedPersistence(test::TestContext& ctx) {
 }
 
 void TestAudioWaveformAmplitudes(test::TestContext& ctx) {
-    initAudio(12345);
+    initAudioGeneration(12345);
     
     // Get waveform amplitudes
     auto amplitudes = getWaveformAmplitudes();
@@ -43,7 +53,7 @@ void TestAudioWaveformAmplitudes(test::TestContext& ctx) {
 }
 
 void TestAudioUpdate(test::TestContext& ctx) {
-    initAudio(12345);
+    initAudioGeneration(12345);
     
     // Test audio update doesn't crash
     updateAudio(0.016f); // ~60fps delta time

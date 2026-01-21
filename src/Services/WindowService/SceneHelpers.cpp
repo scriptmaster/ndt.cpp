@@ -106,16 +106,23 @@ void parseColor(const std::string& colorStr, float& r, float& g, float& b) {
 }
 
 std::string resolveScenePath(const std::string& preferredPath, const std::string& legacyPath) {
-    FILE* file = fopen(preferredPath.c_str(), "r");
-    if (file) {
-        fclose(file);
-        return preferredPath;
-    }
+    const std::string candidates[] = {
+        preferredPath,
+        legacyPath,
+        "../" + preferredPath,
+        "../" + legacyPath,
+        "../../" + preferredPath,
+        "../../" + legacyPath,
+        "../../../" + preferredPath,
+        "../../../" + legacyPath
+    };
 
-    file = fopen(legacyPath.c_str(), "r");
-    if (file) {
-        fclose(file);
-        return legacyPath;
+    for (const auto& path : candidates) {
+        FILE* file = fopen(path.c_str(), "r");
+        if (file) {
+            fclose(file);
+            return path;
+        }
     }
 
     return preferredPath;

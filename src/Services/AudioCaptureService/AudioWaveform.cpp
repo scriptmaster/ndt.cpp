@@ -1,7 +1,7 @@
 #include "AudioWaveform.h"
 #include <cmath>
+#include <mutex>
 #include <vector>
-#include <algorithm>
 
 /**
  * AudioWaveform - Waveform processing implementation
@@ -20,6 +20,7 @@ static const float SILENCE_THRESHOLD = 0.001f;
 static std::vector<float> sampleBuffer(SAMPLE_BUFFER_SIZE, 0.0f);
 static int sampleBufferWriteIndex = 0;
 static int sampleBufferCount = 0;
+static std::mutex waveformMutex;
 
 // RMS history
 static std::vector<float> rmsHistory;
@@ -52,6 +53,7 @@ int getWaveformUpdateFPS() {
 }
 
 void updateAudioSamples(const float* samples, int numSamples) {
+    std::lock_guard<std::mutex> lock(waveformMutex);
     for (int i = 0; i < numSamples; i++) {
         sampleBuffer[sampleBufferWriteIndex] = samples[i];
         sampleBufferWriteIndex = (sampleBufferWriteIndex + 1) % SAMPLE_BUFFER_SIZE;
@@ -62,6 +64,7 @@ void updateAudioSamples(const float* samples, int numSamples) {
 }
 
 float calculateRMS() {
+    std::lock_guard<std::mutex> lock(waveformMutex);
     if (sampleBufferCount == 0) return 0.0f;
     
     float sumSquared = 0.0f;
@@ -79,7 +82,6 @@ static void addBar(float heightPercent) {
     bar.height = heightPercent;
     
     barHistory.insert(barHistory.begin(), bar);
-    
     if (barHistory.size() > MAX_BARS) {
         barHistory.resize(MAX_BARS);
     }
@@ -95,6 +97,7 @@ std::vector<float> getWaveformAmplitudes() {
 }
 
 void updateAudio(float deltaTime) {
+    (void)deltaTime;
     frameCount++;
     
     if (frameCount % updateIntervalFrames != 0) {

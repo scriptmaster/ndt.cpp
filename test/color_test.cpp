@@ -1,5 +1,5 @@
 #include "test.h"
-#include "../display/scene.h"
+#include "../src/Services/WindowService/Scene.h"
 #include <cstdio>
 #include <fstream>
 

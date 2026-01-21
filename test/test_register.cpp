@@ -14,6 +14,7 @@ extern void TestAudioInit(test::TestContext& ctx);
 extern void TestAudioSeedPersistence(test::TestContext& ctx);
 extern void TestAudioWaveformAmplitudes(test::TestContext& ctx);
 extern void TestAudioUpdate(test::TestContext& ctx);
+extern void TestSTTServiceTranscribe(test::TestContext& ctx);
 extern void TestColorHexParsing(test::TestContext& ctx);
 extern void TestColorHexNoHash(test::TestContext& ctx);
 extern void TestColorRGBParsing(test::TestContext& ctx);
@@ -29,6 +30,7 @@ void RegisterAllTests() {
     test::RegisterTest("AudioSeedPersistence", TestAudioSeedPersistence);
     test::RegisterTest("AudioWaveformAmplitudes", TestAudioWaveformAmplitudes);
     test::RegisterTest("AudioUpdate", TestAudioUpdate);
+    test::RegisterTest("STTServiceTranscribe", TestSTTServiceTranscribe);
     test::RegisterTest("ColorHexParsing", TestColorHexParsing);
     test::RegisterTest("ColorHexNoHash", TestColorHexNoHash);
     test::RegisterTest("ColorRGBParsing", TestColorRGBParsing);

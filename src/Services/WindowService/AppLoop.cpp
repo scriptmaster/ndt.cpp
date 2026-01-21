@@ -14,8 +14,10 @@
 #include <GLFW/glfw3native.h>
 #endif
 
-// Forward declarations for audio functions (will be accessed via service injection later)
-extern void updateAudio(float deltaTime);
+#include "../AudioCaptureService/AudioWaveform.h"
+#include "../AudioCaptureService/AudioCapture.h"
+#include "../AudioProcessorService/AudioProcessorService.h"
+#include "../STTService/STTService.h"
 
 /**
  * AppLoop - Main application loop and input handling
@@ -193,6 +195,10 @@ void runMainLoop(std::vector<WindowData>& windows) {
             frameCount++;
             if (frameCount % 60 == 0) {
                 std::cout << "[DEBUG] Frame " << frameCount << std::endl;
+                std::cout << "[DEBUG] Audio callbacks: " << getAudioCaptureCallbackCount()
+                          << " zero-bytes: " << getAudioCaptureZeroByteCount()
+                          << " silent: " << ((AudioProcessorService::GetInstance() &&
+                                             AudioProcessorService::GetInstance()->IsSilent()) ? "yes" : "no") << std::endl;
             }
             
             /**
@@ -209,10 +215,8 @@ void runMainLoop(std::vector<WindowData>& windows) {
              * This includes window events, keyboard input, mouse input, etc.
              * Must be called regularly to keep window responsive
              */
-            std::cout << "[DEBUG] Polling events..." << std::endl;
             try {
                 glfwPollEvents();
-                std::cout << "[DEBUG] Events polled" << std::endl;
             } catch (const std::exception& e) {
                 std::cerr << "[ERROR] Exception during event polling: " << e.what() << std::endl;
             } catch (...) {
@@ -233,6 +237,8 @@ void runMainLoop(std::vector<WindowData>& windows) {
             if (shouldShutdownApplication(windows)) {
                 break;
             }
+
+            // STT is executed inside AudioProcessorService on speech end.
 
             /**
              * Render each window for this frame
@@ -255,7 +261,6 @@ void runMainLoop(std::vector<WindowData>& windows) {
                      * Elapsed time calculations determine fade progress
                      */
                     double currentTime = glfwGetTime();
-                    std::cout << "[DEBUG] Current time: " << currentTime << std::endl;
                     double elapsed = currentTime - wd.fadeStartTime;
                     (void)elapsed;
                     float alpha = 1.0f;
@@ -279,9 +284,7 @@ void runMainLoop(std::vector<WindowData>& windows) {
                      * Double buffering prevents flickering during rendering
                      * VSync ensures frame rate is limited to monitor refresh rate
                      */
-                    std::cout << "[DEBUG] Swapping buffers..." << std::endl;
                     glfwSwapBuffers(wd.window);
-                    std::cout << "[DEBUG] Buffers swapped" << std::endl;
                 } catch (const std::exception& e) {
                     std::cerr << "[ERROR] Exception during window rendering: " << e.what() << std::endl;
                     // Continue to next window
@@ -296,7 +299,6 @@ void runMainLoop(std::vector<WindowData>& windows) {
              * Audio updates include waveform generation and procedural sound
              * Delta time ensures audio is frame-rate independent
              */
-            std::cout << "[DEBUG] Updating audio..." << std::endl;
             try {
                 double currentFrameTime = glfwGetTime();
                 float deltaTime = (float)(currentFrameTime - lastFrameTime);
@@ -312,7 +314,6 @@ void runMainLoop(std::vector<WindowData>& windows) {
                 
                 lastFrameTime = currentFrameTime;
                 updateAudio(deltaTime); // Re-enabled for waveform widget
-                std::cout << "[DEBUG] Audio updated" << std::endl;
             } catch (const std::exception& e) {
                 std::cerr << "[ERROR] Exception during audio update: " << e.what() << std::endl;
             } catch (...) {
@@ -337,6 +338,7 @@ void runMainLoop(std::vector<WindowData>& windows) {
         } catch (...) {
             std::cerr << "[ERROR] Unknown exception in main loop iteration" << std::endl;
             // Continue loop
-        }
-    }
+        } // end try
+    } // end while
+    std::cout << "[DEBUG] Main loop exited - SUCCESS" << std::endl;
 }

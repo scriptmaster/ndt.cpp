@@ -1,7 +1,12 @@
 .PHONY: all build
 
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -O2
+CFLAGS = -O2 -w
+CC = gcc
+CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -w
+WHISPER_VERSION_TAG = v1.8.3
+CXXFLAGS += -DWHISPER_VERSION=\"$(WHISPER_VERSION_TAG)\"
+CFLAGS += -DGGML_VERSION=\"$(WHISPER_VERSION_TAG)\" -DGGML_COMMIT=\"$(WHISPER_VERSION_TAG)\"
 LDFLAGS =
 
 # Platform-specific flags
@@ -43,53 +48,41 @@ ifeq ($(IS_WIN),1)
     endif
     # Fully static linking - bakes everything into the exe except Windows system DLLs
     # Use -static for all libraries to avoid DLL dependencies
-    LDFLAGS += -static -Wl,-Bstatic -lglfw3 -lwinpthread -Wl,-Bdynamic -lopengl32 -lgdi32 -lws2_32 -lwinmm -mwindows
+    LDFLAGS += -static -static-libgcc -static-libstdc++ -s -Wl,-Bstatic -lglfw3 -lwinpthread -Wl,-Bdynamic -lopengl32 -lgdi32 -lws2_32 -lwinmm -lwininet -mwindows
     # Note: OpenGL32 and GDI32 are Windows system DLLs (always available on Windows)
 endif
 
 # Show configuration info
 TARGET = ndt_display
-SRCS = src/App/main.cpp src/App/AppHost.cpp src/App/AdminUtils.cpp src/App/DI/ServiceCollection.cpp src/App/DI/ServiceProvider.cpp \
-       src/Services/LoggingService/LoggingService.cpp \
-       src/Services/LoggingService/Logging.cpp \
-       src/Services/LoggingService/SceneLogger.cpp \
-       src/Services/LocalConfigService/LocalConfigService.cpp \
-       src/Services/WindowService/WindowService.cpp \
-       src/Services/WindowService/WindowManager.cpp \
-       src/Services/WindowService/AppLoop.cpp \
-       src/Services/WindowService/Renderer.cpp \
-       src/Services/WindowService/TextureLoader.cpp \
-       src/Services/WindowService/SceneHelpers.cpp \
-       src/Services/WindowService/BackgroundGraphics.cpp \
-       src/Services/WindowService/BackgroundTriangles.cpp \
-       src/Services/WindowService/BackgroundDots.cpp \
-       src/Services/WindowService/BackgroundOrbs.cpp \
-       src/Services/WindowService/SceneLoader.cpp \
-       src/Services/WindowService/SceneRenderer.cpp \
-       src/Services/WindowService/Admin.cpp \
-       src/Services/AudioService/AudioService.cpp \
-       src/Services/AudioService/AudioSystem.cpp \
-       src/Services/AudioService/AudioCapture.cpp \
-       src/Services/AudioService/AudioWaveform.cpp \
-       src/Services/NetworkService/NetworkSystem.cpp \
-       src/Services/HTTPService/HTTPService.cpp \
-       src/Services/WSService/WSService.cpp \
-       src/Services/STTService/STTService.cpp \
-       src/Services/LLMService/LLMService.cpp \
-       src/Services/TTSService/TTSService.cpp
+# Collect all cpp source files recursively in src/
+SRCS := $(shell find src -name "*.cpp")
 OBJS = $(SRCS:.cpp=.o)
 
+C_SRCS = src/App/third_party/whisper/ggml.c src/App/third_party/whisper/ggml-alloc.c src/App/third_party/whisper/ggml-quants.c
+C_OBJS = $(C_SRCS:.c=.o)
+
 # Add directories to include path
-CXXFLAGS += -Isrc -Isrc/App -Isrc/Services
+CXXFLAGS += -Isrc -Isrc/App -Isrc/Services -Isrc/App/third_party/whisper
 
 all: $(TARGET) run
+
+review:
+	./archive/create_review.sh
+
+app-test: $(TARGET)
+	ENV=test TEST_WAV?=test.wav ./$(TARGET).exe
 
 # Extract and increment version
 VERSION_MAJOR := $(shell grep "define VERSION_MAJOR" src/App/version.h | awk '{print $$3}')
 VERSION_MINOR := $(shell grep "define VERSION_MINOR" src/App/version.h | awk '{print $$3}')
-VERSION_PATCH := $(shell grep "define VERSION_PATCH" src/App/version.h | awk '{print $$3}')
-VERSION_BUILD := $(shell grep "define VERSION_BUILD" src/App/version.h | awk '{print $$3}')
-VERSION_BUILD_NEW := $(shell echo $$(( $(VERSION_BUILD) + 1 )))
+VERSION_PATCH_CURRENT := $(shell grep "define VERSION_PATCH" src/App/version.h | awk '{print $$3}')
+VERSION_BUILD_CURRENT := $(shell grep "define VERSION_BUILD" src/App/version.h | awk '{print $$3}')
+# Patch = days since 2026-01-01 + 1 (e.g., 2026-01-21 => 21)
+START_EPOCH := $(shell date -d "2026-01-01" +%s)
+NOW_EPOCH := $(shell date +%s)
+VERSION_PATCH := $(shell echo $$(( ( $(NOW_EPOCH) - $(START_EPOCH) ) / 86400 + 1 )))
+# Build counter resets when the day changes
+VERSION_BUILD_NEW := $(shell if [ "$(VERSION_PATCH)" = "$(VERSION_PATCH_CURRENT)" ]; then echo $$(( $(VERSION_BUILD_CURRENT) + 1 )); else echo 1; fi)
 VERSION_STRING := $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).$(VERSION_BUILD_NEW)
 
 # Vet must pass before version bump
@@ -100,7 +93,7 @@ vet-pass:
 
 # Update version.h before build (only after vet passes)
 src/App/version.h: vet-pass FORCE
-	@echo "Incrementing version: $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).$(VERSION_BUILD) -> $(VERSION_STRING)"
+	@echo "Incrementing version: $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH_CURRENT).$(VERSION_BUILD_CURRENT) -> $(VERSION_STRING)"
 	@echo "#ifndef VERSION_H" > src/App/version.h
 	@echo "#define VERSION_H" >> src/App/version.h
 	@echo "" >> src/App/version.h
@@ -113,7 +106,7 @@ src/App/version.h: vet-pass FORCE
 	@echo "" >> src/App/version.h
 	@echo "#endif // VERSION_H" >> src/App/version.h
 
-build: src/App/version.h $(OBJS)
+build: src/App/version.h $(OBJS) $(C_OBJS)
 	@mkdir -p bin
 	@mkdir -p bin/builds/builds config
 	@if [ ! -f config/audio_seed.txt ]; then \
@@ -127,11 +120,11 @@ build: src/App/version.h $(OBJS)
 	@BUILD_TARGET=$(TARGET).v$(VERSION_STRING).exe; \
 	if [ -f $(TARGET).exe ]; then \
 		echo "Building to versioned file first: $$BUILD_TARGET (to avoid locking $(TARGET).exe)"; \
-		$(CXX) $(OBJS) -o $$BUILD_TARGET $(LDFLAGS); \
+		$(CXX) $(OBJS) $(C_OBJS) -o $$BUILD_TARGET $(LDFLAGS); \
 	else \
 		echo "Building to: $(TARGET).exe"; \
 		BUILD_TARGET=$(TARGET).exe; \
-		$(CXX) $(OBJS) -o $$BUILD_TARGET $(LDFLAGS); \
+		$(CXX) $(OBJS) $(C_OBJS) -o $$BUILD_TARGET $(LDFLAGS); \
 	fi; \
 	if [ $$? -eq 0 ]; then \
 		if [ -f $$BUILD_TARGET ]; then \
@@ -163,14 +156,27 @@ build: src/App/version.h $(OBJS)
 	@if [ -f bin/builds/builds/v$(VERSION_STRING).exe ]; then \
 		echo "Bundling required DLLs..."; \
 		if command -v objdump > /dev/null 2>&1; then \
+			CXX_BIN=$$(dirname "$$(command -v $(CXX))" 2>/dev/null || echo ""); \
 			for DLL in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll glfw3.dll; do \
-				DLL_PATH=$$(find /mingw64/bin /usr/bin /bin -name "$$DLL" 2>/dev/null | head -1); \
+				DLL_PATH=""; \
+				for SEARCH in "$$CXX_BIN" /c/ProgramData/mingw64/mingw64/bin /mingw64/bin /usr/bin /bin; do \
+					if [ -n "$$SEARCH" ] && [ -f "$$SEARCH/$$DLL" ]; then \
+						DLL_PATH="$$SEARCH/$$DLL"; \
+						break; \
+					fi; \
+				done; \
 				if [ -n "$$DLL_PATH" ] && [ -f "$$DLL_PATH" ]; then \
 					cp "$$DLL_PATH" bin/builds/builds/$$DLL 2>/dev/null || true; \
 					echo "  Bundled: $$DLL"; \
 				fi; \
 			done; \
 		fi; \
+		# Also copy DLLs next to ndt_display.exe for Git Bash runs \
+		for DLL in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll glfw3.dll; do \
+			if [ -f "bin/builds/builds/$$DLL" ]; then \
+				cp "bin/builds/builds/$$DLL" "./$$DLL" 2>/dev/null || true; \
+			fi; \
+		done; \
 		\
 		# Create/update run.cmd with latest version (simple 2-line format) \
 		echo "git pull" > bin/builds/builds/run.cmd; \
@@ -210,21 +216,26 @@ run:
 	VERSION_STRING="$$VERSION_MAJOR.$$VERSION_MINOR.$$VERSION_PATCH.$$LATEST_VERSION"; \
 	VERSIONED_EXE="$(TARGET).v$$VERSION_STRING.exe"; \
 	VERSIONED_EXE_BUILDS="bin/builds/builds/v$$VERSION_STRING.exe"; \
-	if [ -f "$$VERSIONED_EXE" ]; then \
-		echo "Running $$VERSIONED_EXE"; \
-		./$$VERSIONED_EXE; EXIT_CODE=$$?; \
-	elif [ -f "$$VERSIONED_EXE_BUILDS" ]; then \
+	PWD_WIN=$$(pwd -W 2>/dev/null || pwd); \
+	if [ -f "$$VERSIONED_EXE_BUILDS" ]; then \
 		echo "Running $$VERSIONED_EXE_BUILDS"; \
-		./$$VERSIONED_EXE_BUILDS; EXIT_CODE=$$?; \
+		if [ "$(IS_WIN)" = "1" ]; then powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -WorkingDirectory '$$PWD_WIN\\bin\\builds\\builds' -FilePath 'v$$VERSION_STRING.exe'"; EXIT_CODE=0; else ./$$VERSIONED_EXE_BUILDS; EXIT_CODE=$$?; fi; \
 	elif [ -f "$(TARGET).exe" ]; then \
-		echo "Versioned executable not found, running $(TARGET).exe"; \
-		./$(TARGET).exe; EXIT_CODE=$$?; \
+		echo "Running $(TARGET).exe"; \
+		if [ "$(IS_WIN)" = "1" ]; then powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -WorkingDirectory '$$PWD_WIN' -FilePath '$(TARGET).exe'"; EXIT_CODE=0; else ./$(TARGET).exe; EXIT_CODE=$$?; fi; \
+	elif [ -f "$$VERSIONED_EXE" ]; then \
+		echo "Running $$VERSIONED_EXE"; \
+		if [ "$(IS_WIN)" = "1" ]; then powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -WorkingDirectory '$$PWD_WIN' -FilePath '$$VERSIONED_EXE'"; EXIT_CODE=0; else ./$$VERSIONED_EXE; EXIT_CODE=$$?; fi; \
 	elif [ -f "$(TARGET)" ]; then \
 		echo "Versioned executable not found, running $(TARGET)"; \
 		./$(TARGET); EXIT_CODE=$$?; \
 	else \
 		echo "Error: No executable found to run"; \
 		exit 1; \
+	fi; \
+	if [ "$(IS_WIN)" = "1" ]; then \
+		echo "NDT Logo Display launched"; \
+		exit 0; \
 	fi; \
 	if [ $$EXIT_CODE -eq 0 ]; then \
 		echo "NDT Logo Display shut down gracefully"; \
@@ -258,30 +269,48 @@ vet:
 
 # Test target - similar to go test
 TEST_TARGET = test_runner
-TEST_SRCS = test/test_main.cpp test/test_register.cpp test/scene_test.cpp test/audio_test.cpp test/color_test.cpp
+TEST_SRCS = test/test_main.cpp test/test_register.cpp test/scene_test.cpp test/audio_test.cpp test/color_test.cpp test/stt_test.cpp
 TEST_OBJS = $(TEST_SRCS:.cpp=.o)
+TEST_EXTRA_SRCS = src/Services/WindowService/SceneLoader.cpp \
+                  src/Services/WindowService/SceneHelpers.cpp \
+                  src/Services/AudioPlayerService/AudioGeneration.cpp \
+                  src/Services/AudioPlayerService/AudioSeed.cpp \
+                  src/Services/AudioCaptureService/AudioWaveform.cpp \
+                  src/Services/STTService/STTService.cpp \
+                  src/App/third_party/whisper/whisper.cpp
+TEST_EXTRA_OBJS = $(TEST_EXTRA_SRCS:.cpp=.o)
+TEST_EXTRA_C_SRCS = src/App/third_party/whisper/ggml.c src/App/third_party/whisper/ggml-alloc.c src/App/third_party/whisper/ggml-quants.c
+TEST_EXTRA_C_OBJS = $(TEST_EXTRA_C_SRCS:.c=.o)
+TEST_LDFLAGS =
+ifeq ($(IS_WIN),1)
+    TEST_LDFLAGS += -lwininet
+endif
 
-test: $(TEST_TARGET)
+TEST_WAV ?= test.wav
+TEST_MP3 ?= test/test.mp3
+
+test: $(TEST_TARGET) $(TEST_WAV)
 	@echo "Running tests..."
 	@./$(TEST_TARGET)
 
-$(TEST_TARGET): $(TEST_OBJS) archive/scene.o.old archive/audio.o.old archive/logging.o.old
+$(TEST_WAV): $(TEST_MP3)
+	@echo "Converting $(TEST_MP3) -> $(TEST_WAV)..."
+	@ffmpeg -y -i "$(TEST_MP3)" -ac 1 -ar 16000 -f wav "$(TEST_WAV)"
+
+$(TEST_TARGET): $(TEST_OBJS) $(TEST_EXTRA_OBJS) $(TEST_EXTRA_C_OBJS)
 	@echo "Building test runner..."
 	@# For tests, link OpenGL libraries (scene.cpp uses OpenGL functions)
 	@# Use -Wl,--whole-archive to ensure all symbols are included (helps with static initialization)
-	@if [ -f archive/scene.o.old ] && [ -f archive/audio.o.old ] && [ -f archive/logging.o.old ]; then \
-		$(CXX) $(CXXFLAGS) -o $(TEST_TARGET) $(TEST_OBJS) archive/scene.o.old archive/audio.o.old archive/logging.o.old -L./lib -Wl,--whole-archive -static-libgcc -static-libstdc++ -Wl,--no-whole-archive -lopengl32 -lgdi32; \
-	else \
-		$(CXX) $(CXXFLAGS) -c archive/scene.cpp.old -o archive/scene.o.old; \
-		$(CXX) $(CXXFLAGS) -c archive/audio.cpp.old -o archive/audio.o.old; \
-		$(CXX) $(CXXFLAGS) -c archive/logging.cpp.old -o archive/logging.o.old; \
-		$(CXX) $(CXXFLAGS) -o $(TEST_TARGET) $(TEST_OBJS) archive/scene.o.old archive/audio.o.old archive/logging.o.old -L./lib -Wl,--whole-archive -static-libgcc -static-libstdc++ -Wl,--no-whole-archive -lopengl32 -lgdi32; \
-	fi
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET) $(TEST_OBJS) $(TEST_EXTRA_OBJS) $(TEST_EXTRA_C_OBJS) -L./lib -Wl,--whole-archive -static-libgcc -static-libstdc++ -Wl,--no-whole-archive -lopengl32 -lgdi32 $(TEST_LDFLAGS)
 	@echo "Test runner built successfully"
 
 test/%.o: test/%.cpp test/test.h
 	@mkdir -p test
 	$(CXX) $(CXXFLAGS) -Itest -I. -Isrc -c $< -o $@
+
+src/App/third_party/whisper/%.o: src/App/third_party/whisper/%.c
+	@mkdir -p src/App/third_party/whisper
+	$(CC) $(CFLAGS) -Isrc/App/third_party/whisper -c $< -o $@
 
 clean-test:
 	rm -f $(TEST_OBJS) $(TEST_TARGET) test_*.json test_*.txt
@@ -476,4 +505,4 @@ msi: $(TARGET)
 	echo "MSI installer created: bin/builds/builds/app-v$$CURRENT_VERSION.msi"; \
 	rm -rf "$$BUILDDIR"
 
-.PHONY: all clean setup-glfw msi vet FORCE
+.PHONY: all clean setup-glfw msi vet review test FORCE

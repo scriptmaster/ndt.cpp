@@ -2,6 +2,7 @@
 #include "WindowData.h"
 #include "TextureLoader.h"
 #include "SceneHelpers.h"
+#include "AudioPlayerService/AudioSeed.h"
 #include <cstdio>  // For FILE, fopen, fclose
 #include <GLFW/glfw3.h>
 #include <fstream>
@@ -33,12 +34,7 @@
 #include "Scene.h"
 #include "Admin.h"
 
-// Forward declarations for audio functions - these exist in LocalConfigService/AudioService
-// TODO: These will need to be accessed via service injection or global accessor
-// For now, using forward declarations with C-style linkage
-extern int getAudioSeed();
-extern void setAudioSeed(int seed);
-extern bool saveAudioSeed(const std::string& filename);
+// Audio seed functions provided by AudioPlayerService
 
 /**
  * Prepare window for rendering
@@ -619,7 +615,7 @@ void handleDisplayState(WindowData& wd, double currentTime, float& alpha) {
      */
     double elapsed = currentTime - wd.fadeStartTime;
     
-    std::cout << "[DEBUG] Current state: " << (int)wd.state << std::endl;
+    // std::cout << "[DEBUG] Current state: " << (int)wd.state << std::endl;
     
     /**
      * Route to appropriate state handler based on current state
@@ -749,10 +745,8 @@ void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alph
      * Alpha value controls transparency for fade-in/fade-out effects
      */
     if (wd.isValid) {
-        std::cout << "[DEBUG] Rendering texture, alpha: " << alpha << std::endl;
         TextureLoader::RenderTexture(wd.texture, wd.textureWidth, wd.textureHeight, 
                      fbWidth, fbHeight, alpha);
-        std::cout << "[DEBUG] Texture rendered" << std::endl;
         
         /**
          * If scene is loading, show loading indicator over the logo
