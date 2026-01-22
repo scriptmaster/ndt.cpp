@@ -13,3 +13,5 @@ bin
 *.wixproj.user.props
 *.dll
 compile_commands.json
+*.bin
+third_party/

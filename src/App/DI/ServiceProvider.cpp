@@ -1,5 +1,6 @@
 #include "ServiceProvider.h"
 #include "../../Services/LoggingService/ILoggingService.h"
+#include "ServiceStatusRegistry.h"
 #include <typeinfo>
 #include <iostream>
 #include <sstream>
@@ -212,13 +213,25 @@ bool ServiceProvider::StartServices() {
 
     std::cout << "[DEBUG] ServiceProvider::StartServices() - starting all services..." << std::endl;
 
+    const auto& descriptors = collection_.GetDescriptors();
+
+    ServiceStatusRegistry::Reset();
+    for (const auto& descriptor : descriptors) {
+        ServiceStatusRegistry::RegisterService(descriptor.displayName);
+    }
+    ServiceStatusRegistry::StartTimer();
+
     // Track started services for rollback on failure
     std::vector<std::shared_ptr<IService>> started;
 
     // Start services in registration order
     // LoggingService is first (guaranteed by validation)
-    for (auto& service : servicesOrdered_) {
+    for (size_t i = 0; i < servicesOrdered_.size(); ++i) {
+        auto& service = servicesOrdered_[i];
         const char* serviceName = typeid(*service).name();
+        const std::string& displayName = (i < descriptors.size())
+            ? descriptors[i].displayName
+            : std::string(serviceName);
         try {
             std::cout << "[DEBUG] Starting service: " << serviceName << std::endl;
             if (!service->Start()) {
@@ -234,6 +247,7 @@ bool ServiceProvider::StartServices() {
                 return false;
             }
             started.push_back(service);
+            ServiceStatusRegistry::MarkStarted(displayName);
         } catch (const std::exception& e) {
             // Exception during start - rollback all started services
             std::cout << "[ERROR] Exception during service start - rolling back... (" << serviceName

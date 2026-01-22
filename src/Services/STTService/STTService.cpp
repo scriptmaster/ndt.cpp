@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "ggml-backend.h"
+#include "../LoggingService/SceneLogger.h"
 #include "whisper.h"
 
 /**
@@ -25,9 +26,16 @@ void WhisperContextDeleter::operator()(whisper_context* ctx) const noexcept {
 }
 
 STTService* STTService::instance_ = nullptr;
+std::mutex STTService::transcriptMutex_;
+std::string STTService::latestTranscript_;
 
 namespace {
 constexpr std::uintmax_t kMinModelSizeBytes = 5ULL * 1024 * 1024;
+
+int formatDurationSeconds(std::chrono::steady_clock::duration duration) {
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+    return static_cast<int>((ms + 500) / 1000);
+}
 
 std::uintmax_t getFileSizeIfExists(const std::string& path) {
     namespace fs = std::filesystem;
@@ -186,6 +194,16 @@ STTService* STTService::GetInstance() {
     return instance_;
 }
 
+std::string STTService::GetLatestTranscript() {
+    std::lock_guard<std::mutex> lock(transcriptMutex_);
+    return latestTranscript_;
+}
+
+void STTService::SetLatestTranscript(const std::string& transcript) {
+    std::lock_guard<std::mutex> lock(transcriptMutex_);
+    latestTranscript_ = transcript;
+}
+
 std::string STTService::Transcribe(const std::vector<float>& samples) {
     return Transcribe(samples.data(), static_cast<int>(samples.size()));
 }
@@ -250,6 +268,7 @@ std::string STTService::TranscribeBlocking(const int16_t* samples, int count) {
               << " | thread=" << std::this_thread::get_id()
               << " | ctx=" << ctx_.get() << std::endl;
 
+    const auto startTime = std::chrono::steady_clock::now();
     whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
     params.print_progress = false;
     params.print_realtime = false;
@@ -260,6 +279,7 @@ std::string STTService::TranscribeBlocking(const int16_t* samples, int count) {
               << " | language=" << (params.language ? params.language : "null")
               << " | samples=" << static_cast<int>(floatSamples.size()) << std::endl;
     int whisperResult = whisper_full(ctx_.get(), params, floatSamples.data(), static_cast<int>(floatSamples.size()));
+    const auto endTime = std::chrono::steady_clock::now();
     if (whisperResult != 0) {
         std::cerr << "[ERROR] STT: whisper_full failed" << std::endl;
         return "";
@@ -277,7 +297,11 @@ std::string STTService::TranscribeBlocking(const int16_t* samples, int count) {
     }
 
     if (!transcript.empty()) {
-        std::cout << "[STT] " << transcript << std::endl;
+        SetLatestTranscript(transcript);
+        const int seconds = formatDurationSeconds(endTime - startTime);
+        const std::string line = "[STT] [" + std::to_string(seconds) + "s] " + transcript;
+        std::cout << line << std::endl;
+        logAudio(line);
     }
 
     return transcript;
@@ -397,6 +421,7 @@ void STTService::WorkerLoop() {
                       << " | thread=" << std::this_thread::get_id()
                       << " | ctx=" << ctx_.get() << std::endl;
 
+            const auto startTime = std::chrono::steady_clock::now();
             whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
             params.print_progress = false;
             params.print_realtime = false;
@@ -407,6 +432,7 @@ void STTService::WorkerLoop() {
                       << " | language=" << (params.language ? params.language : "null")
                       << " | samples=" << static_cast<int>(floatSamples.size()) << std::endl;
             int whisperResult = whisper_full(ctx_.get(), params, floatSamples.data(), static_cast<int>(floatSamples.size()));
+            const auto endTime = std::chrono::steady_clock::now();
             if (whisperResult != 0) {
                 std::cerr << "[ERROR] STT: whisper_full failed" << std::endl;
                 continue;
@@ -424,7 +450,11 @@ void STTService::WorkerLoop() {
             }
 
             if (!transcript.empty()) {
-                std::cout << "[STT] " << transcript << std::endl;
+                SetLatestTranscript(transcript);
+                const int seconds = formatDurationSeconds(endTime - startTime);
+                const std::string line = "[STT] [" + std::to_string(seconds) + "s] " + transcript;
+                std::cout << line << std::endl;
+                logAudio(line);
             }
         } catch (const std::exception& e) {
             std::cerr << "[ERROR] STT: Exception during transcription: " << e.what() << std::endl;

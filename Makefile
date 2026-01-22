@@ -1,13 +1,65 @@
 .PHONY: all build
 
-CXX = g++
-CFLAGS = -O2 -w
-CC = gcc
-CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -w
-WHISPER_VERSION_TAG = v1.8.3
-CXXFLAGS += -DWHISPER_VERSION=\"$(WHISPER_VERSION_TAG)\" -DGGML_USE_CPU
-CFLAGS += -DGGML_VERSION=\"$(WHISPER_VERSION_TAG)\" -DGGML_COMMIT=\"$(WHISPER_VERSION_TAG)\" -DGGML_USE_CPU
-LDFLAGS =
+# =========================
+# Toolchain
+# =========================
+CXX := clang++
+CC  := clang
+
+CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -w
+CFLAGS   := -O2 -w
+
+# =========================
+# Project
+# =========================
+TARGET := ndt_display
+
+SRC_DIR := src
+TP_DIR  := third_party
+
+# =========================
+# Whisper / ggml (CPU)
+# =========================
+WHISPER_VERSION := v1.8.3
+WHISPER_VERSION_NUM := $(patsubst v%,%,$(WHISPER_VERSION))
+WHISPER_DIR := $(TP_DIR)/whisper.cpp/$(WHISPER_VERSION)
+GGML_DIR    := $(WHISPER_DIR)/ggml
+GGML_SRC    := $(GGML_DIR)/src
+GGML_CPU    := $(GGML_SRC)/ggml-cpu
+GGML_CPU_AMX = $(GGML_CPU)/amx
+GGML_CPU_ARCH_X86 = $(GGML_CPU)/arch/x86
+
+WHISPER_INCLUDE = $(WHISPER_DIR)/include
+WHISPER_GGML_INCLUDE = $(GGML_DIR)/include
+THIRD_PARTY_READY = $(WHISPER_DIR)/.ready
+STB_DIR = $(TP_DIR)/stb
+STB_EASY_FONT = $(STB_DIR)/stb_easy_font.h
+STB_EASY_FONT_URL = https://raw.githubusercontent.com/nothings/stb/master/stb_easy_font.h
+STB_IMAGE = $(STB_DIR)/stb_image.h
+STB_IMAGE_URL = https://raw.githubusercontent.com/nothings/stb/master/stb_image.h
+
+# =========================
+# Includes (ONLY directories)
+# =========================
+INCLUDES := \
+	-I. \
+	-I$(SRC_DIR) \
+	-I$(SRC_DIR)/App \
+	-I$(SRC_DIR)/Services \
+	-I./include \
+	-I$(TP_DIR) \
+	-I$(WHISPER_DIR)/include \
+	-I$(GGML_DIR)/include \
+	-I$(GGML_SRC) \
+	-I$(GGML_CPU)
+
+CXXFLAGS += $(INCLUDES) -DGGML_USE_CPU -DWHISPER_VERSION=\"$(WHISPER_VERSION)\"
+CFLAGS   += $(INCLUDES) -DGGML_USE_CPU -DGGML_VERSION=\"$(WHISPER_VERSION)\" -DGGML_COMMIT=\"$(WHISPER_VERSION)\"
+
+# =========================
+# Platform (Windows / Linux)
+# =========================
+LDFLAGS :=
 
 # Platform-specific flags
 UNAME_S := $(shell uname -s)
@@ -52,17 +104,47 @@ ifeq ($(IS_WIN),1)
     # Note: OpenGL32 and GDI32 are Windows system DLLs (always available on Windows)
 endif
 
-# Show configuration info
-TARGET = ndt_display
-# Collect all cpp source files recursively in src/
-SRCS := $(shell find src -name "*.cpp")
-OBJS = $(SRCS:.cpp=.o)
+# =========================
+# Source files
+# =========================
+APP_CPP := $(shell find $(SRC_DIR) -name "*.cpp")
 
-C_SRCS = src/App/third_party/whisper/ggml.c src/App/third_party/whisper/ggml-alloc.c src/App/third_party/whisper/ggml-quants.c
-C_OBJS = $(C_SRCS:.c=.o)
+GGML_CPP_SRC := $(GGML_SRC)/ggml.cpp
+GGML_CPP_OBJ := $(GGML_SRC)/ggml_cpp.o
+GGML_CPU_CPP_SRC := $(GGML_CPU)/ggml-cpu.cpp
+GGML_CPU_CPP_OBJ := $(GGML_CPU)/ggml_cpu_cpp.o
 
-# Add directories to include path
-CXXFLAGS += -I. -Isrc -Isrc/App -Isrc/Services -Isrc/App/third_party/whisper -I./include
+WHISPER_CPP := \
+	$(WHISPER_DIR)/src/whisper.cpp \
+	$(GGML_SRC)/gguf.cpp \
+	$(GGML_SRC)/ggml-backend.cpp \
+	$(GGML_SRC)/ggml-backend-reg.cpp \
+	$(GGML_SRC)/ggml-threading.cpp \
+	$(GGML_CPU)/repack.cpp \
+	$(GGML_CPU)/traits.cpp \
+	$(GGML_CPU)/binary-ops.cpp \
+	$(GGML_CPU)/unary-ops.cpp \
+	$(GGML_CPU)/vec.cpp \
+	$(GGML_CPU)/ops.cpp \
+	$(GGML_CPU_AMX)/amx.cpp \
+	$(GGML_CPU_AMX)/mmq.cpp \
+	$(GGML_CPU_ARCH_X86)/repack.cpp
+
+GGML_C := \
+	$(GGML_SRC)/ggml.c \
+	$(GGML_SRC)/ggml-alloc.c \
+	$(GGML_SRC)/ggml-quants.c \
+	$(GGML_CPU)/ggml-cpu.c \
+	$(GGML_CPU)/quants.c \
+	$(GGML_CPU_ARCH_X86)/quants.c
+
+SRCS_CPP := $(APP_CPP) $(WHISPER_CPP)
+SRCS_C   := $(GGML_C)
+
+OBJS_CPP := $(SRCS_CPP:.cpp=.o)
+OBJS_C   := $(SRCS_C:.c=.o)
+
+OBJS := $(OBJS_CPP) $(OBJS_C) $(GGML_CPP_OBJ) $(GGML_CPU_CPP_OBJ)
 
 all: $(TARGET) run
 
@@ -71,6 +153,32 @@ review:
 
 app-test: $(TARGET)
 	ENV=test TEST_WAV?=test.wav ./$(TARGET).exe
+
+third_party: $(THIRD_PARTY_READY)
+
+$(THIRD_PARTY_READY):
+	@mkdir -p $(TP_DIR)
+	@mkdir -p $(TP_DIR)/whisper.cpp
+	@if [ ! -d "$(WHISPER_DIR)" ]; then \
+		echo "Fetching whisper.cpp $(WHISPER_VERSION)..."; \
+		TMP_ZIP=$$(mktemp -u).zip; \
+		curl -L -o $$TMP_ZIP "https://github.com/ggerganov/whisper.cpp/archive/refs/tags/$(WHISPER_VERSION).zip"; \
+		unzip -q $$TMP_ZIP -d $(TP_DIR); \
+		rm -f $$TMP_ZIP; \
+		mv $(TP_DIR)/whisper.cpp-$(WHISPER_VERSION_NUM) $(WHISPER_DIR); \
+		rm -rf $(WHISPER_DIR)/.github; \
+	fi
+	@if [ ! -f "$(STB_EASY_FONT)" ]; then \
+		echo "Fetching stb_easy_font.h..."; \
+		mkdir -p $(STB_DIR); \
+		curl -L -o $(STB_EASY_FONT) "$(STB_EASY_FONT_URL)"; \
+	fi
+	@if [ ! -f "$(STB_IMAGE)" ]; then \
+		echo "Fetching stb_image.h..."; \
+		mkdir -p $(STB_DIR); \
+		curl -L -o $(STB_IMAGE) "$(STB_IMAGE_URL)"; \
+	fi
+	@touch $@
 
 # Extract and increment version
 VERSION_MAJOR := $(shell grep "define VERSION_MAJOR" src/App/version.h | awk '{print $$3}')
@@ -106,7 +214,7 @@ src/App/version.h: vet-pass FORCE
 	@echo "" >> src/App/version.h
 	@echo "#endif // VERSION_H" >> src/App/version.h
 
-build: src/App/version.h $(OBJS) $(C_OBJS)
+build: $(THIRD_PARTY_READY) src/App/version.h $(OBJS)
 	@mkdir -p bin
 	@mkdir -p bin/builds/builds config
 	@if [ ! -f config/audio_seed.txt ]; then \
@@ -120,11 +228,11 @@ build: src/App/version.h $(OBJS) $(C_OBJS)
 	@BUILD_TARGET=$(TARGET).v$(VERSION_STRING).exe; \
 	if [ -f $(TARGET).exe ]; then \
 		echo "Building to versioned file first: $$BUILD_TARGET (to avoid locking $(TARGET).exe)"; \
-		$(CXX) $(OBJS) $(C_OBJS) -o $$BUILD_TARGET $(LDFLAGS); \
+		$(CXX) $(OBJS) -o $$BUILD_TARGET $(LDFLAGS); \
 	else \
 		echo "Building to: $(TARGET).exe"; \
 		BUILD_TARGET=$(TARGET).exe; \
-		$(CXX) $(OBJS) $(C_OBJS) -o $$BUILD_TARGET $(LDFLAGS); \
+		$(CXX) $(OBJS) -o $$BUILD_TARGET $(LDFLAGS); \
 	fi; \
 	if [ $$? -eq 0 ]; then \
 		if [ -f $$BUILD_TARGET ]; then \
@@ -217,6 +325,13 @@ clang: LDFLAGS += -fsanitize=address -fsanitize=undefined -fsanitize=leak
 clang: clean compile_commands build
 	@echo "Built with clang++ and sanitizers enabled"
 
+.PHONY: clang-release
+clang-release: CXX = clang++
+clang-release: CC = clang
+clang-release: LDFLAGS = -L./lib -L/c/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/lib -lglfw3 -lwinpthread -lopengl32 -lgdi32 -lws2_32 -lwinmm -lwininet -mwindows
+clang-release: build
+	@echo "Built with clang++ (release flags)"
+
 # Generate compile_commands.json for IDE/tooling support
 .PHONY: compile_commands
 compile_commands:
@@ -305,6 +420,27 @@ run:
 	fi
 
 %.o: %.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(GGML_SRC)/ggml.o: $(GGML_SRC)/ggml.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(GGML_CPU)/ggml-cpu.o: $(GGML_CPU)/ggml-cpu.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(GGML_CPP_OBJ): $(GGML_CPP_SRC)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(GGML_CPU_CPP_OBJ): $(GGML_CPU_CPP_SRC)
+	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Vet target - check code quality
@@ -334,12 +470,10 @@ TEST_EXTRA_SRCS = src/Services/WindowService/SceneLoader.cpp \
                   src/Services/AudioPlayerService/AudioSeed.cpp \
                   src/Services/AudioCaptureService/AudioWaveform.cpp \
                   src/Services/STTService/STTService.cpp \
-                  src/App/third_party/whisper/ggml-backend.cpp \
-                  src/App/third_party/whisper/ggml-backend-reg.cpp \
-                  src/App/third_party/whisper/ggml-threading.cpp \
-                  src/App/third_party/whisper/whisper.cpp
+                  $(WHISPER_CPP)
 TEST_EXTRA_OBJS = $(TEST_EXTRA_SRCS:.cpp=.o)
-TEST_EXTRA_C_SRCS = src/App/third_party/whisper/ggml.c src/App/third_party/whisper/ggml-alloc.c src/App/third_party/whisper/ggml-quants.c
+TEST_EXTRA_OBJS += $(GGML_CPP_OBJ) $(GGML_CPU_CPP_OBJ)
+TEST_EXTRA_C_SRCS = $(GGML_C)
 TEST_EXTRA_C_OBJS = $(TEST_EXTRA_C_SRCS:.c=.o)
 TEST_LDFLAGS =
 ifeq ($(IS_WIN),1)
@@ -367,10 +501,6 @@ $(TEST_TARGET): $(TEST_OBJS) $(TEST_EXTRA_OBJS) $(TEST_EXTRA_C_OBJS)
 test/%.o: test/%.cpp test/test.h
 	@mkdir -p test
 	$(CXX) $(CXXFLAGS) -Itest -I. -Isrc -c $< -o $@
-
-src/App/third_party/whisper/%.o: src/App/third_party/whisper/%.c
-	@mkdir -p src/App/third_party/whisper
-	$(CC) $(CFLAGS) -Isrc/App/third_party/whisper -c $< -o $@
 
 clean-test:
 	rm -f $(TEST_OBJS) $(TEST_TARGET) test_*.json test_*.txt
@@ -458,6 +588,7 @@ test/ui_test.o: test/ui_test.cpp
 
 clean: clean-test
 	rm -f $(OBJS) $(TARGET) $(AUDIO_TEST_TARGET) $(AUDIO_TEST_OBJ) $(UI_TEST_TARGET) $(UI_TEST_OBJ)
+	rm -rf $(TP_DIR)
 
 # Windows-specific: Setup GLFW
 setup-glfw:
@@ -565,4 +696,4 @@ msi: $(TARGET)
 	echo "MSI installer created: bin/builds/builds/app-v$$CURRENT_VERSION.msi"; \
 	rm -rf "$$BUILDDIR"
 
-.PHONY: all clean setup-glfw msi vet review test FORCE
+.PHONY: all clean setup-glfw msi vet review test FORCE third_party clang-release

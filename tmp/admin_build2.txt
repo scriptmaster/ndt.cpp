@@ -1,0 +1,1 @@
+g++.exe: warning: '-pipe' ignored because '-save-temps' specified

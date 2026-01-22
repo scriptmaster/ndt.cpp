@@ -2,6 +2,9 @@
 #include "WindowData.h"
 #include "TextureLoader.h"
 #include "SceneHelpers.h"
+#include "TextOverlay.h"
+#include "../STTService/STTService.h"
+#include "../../App/DI/ServiceStatusRegistry.h"
 #include "AudioPlayerService/AudioSeed.h"
 #include <cstdio>  // For FILE, fopen, fclose
 #include <GLFW/glfw3.h>
@@ -18,10 +21,8 @@
 #endif
 
 #include <iostream>
-#include <map>
 #include <stdexcept>
 #include <exception>
-#include <cstdlib>  // For rand()
 
 /**
  * Renderer - Rendering and state management functions
@@ -82,8 +83,6 @@ void prepareWindowForRendering(const WindowData& wd, int& fbWidth, int& fbHeight
  * Uses linear interpolation over 0.8 seconds for smooth fade
  */
 float handleLogoFadeIn(WindowData& wd, double elapsed, double currentTime) {
-    std::cout << "[DEBUG] State: LOGO_FADE_IN" << std::endl;
-    
     /**
      * Calculate fade progress from 0.0 to 1.0
      * Linear interpolation: elapsed time divided by fade duration
@@ -105,11 +104,62 @@ float handleLogoFadeIn(WindowData& wd, double elapsed, double currentTime) {
     return alpha;
 }
 
+static void renderTranscriptOverlay(int fbWidth, int fbHeight) {
+    const std::string transcript = STTService::GetLatestTranscript();
+    if (transcript.empty()) {
+        return;
+    }
+    renderBottomCenterTextOverlay(transcript, fbWidth, fbHeight);
+}
+
+static void renderServiceStatusOverlayForWindow(const WindowData& wd, int fbWidth, int fbHeight) {
+    const std::vector<ServiceStatus> statuses = ServiceStatusRegistry::GetStatuses();
+    if (statuses.empty()) {
+        return;
+    }
+
+    float quadHeight = static_cast<float>(fbHeight) * 0.5f;
+    if (wd.isValid && wd.textureWidth > 0 && wd.textureHeight > 0) {
+        const float targetWidth = fbWidth * 0.5f;
+        const float targetHeight = fbHeight * 0.5f;
+        const float textureAspect = static_cast<float>(wd.textureWidth) / static_cast<float>(wd.textureHeight);
+        const float targetAspect = targetWidth / targetHeight;
+        if (textureAspect > targetAspect) {
+            quadHeight = targetWidth / textureAspect;
+        } else {
+            quadHeight = targetHeight;
+        }
+    }
+
+    const float listStartY = std::min(static_cast<float>(fbHeight) - 20.0f,
+                                      static_cast<float>(fbHeight) * 0.5f + quadHeight * 0.5f + 12.0f);
+    renderServiceStatusOverlay(statuses, fbWidth, fbHeight, listStartY, ServiceStatusRegistry::ElapsedSeconds());
+}
+
+static void ensureLogoTextureLoaded(WindowData& wd) {
+    if (wd.textureLoadAttempted || wd.logoPath.empty()) {
+        return;
+    }
+
+    wd.textureLoadAttempted = true;
+    TextureInfo texInfo = TextureLoader::LoadTexture(wd.logoPath.c_str());
+    wd.texture = texInfo.id;
+    wd.textureWidth = texInfo.width;
+    wd.textureHeight = texInfo.height;
+    wd.isValid = (wd.texture != 0);
+
+    if (!wd.isValid) {
+        std::cerr << "Warning: Failed to load texture for " << wd.logoPath << std::endl;
+    } else {
+        std::cout << "Loaded texture: " << wd.logoPath << " (" << wd.textureWidth
+                  << "x" << wd.textureHeight << ")" << std::endl;
+    }
+}
+
 /**
  * Handle logo showing state
- * Logo is fully visible and waits for user interaction or timeout
- * Detects mouse clicks and double-clicks for audio seed changes
- * Automatically transitions after 20 seconds if no interaction
+ * Logo stays visible while services are starting
+ * Transitions to fade-out once all services report started
  */
 float handleLogoShowing(WindowData& wd, double currentTime) {
     /**
@@ -117,77 +167,6 @@ float handleLogoShowing(WindowData& wd, double currentTime) {
      * Alpha is always 1.0 since logo fade-in completed
      */
     float alpha = 1.0f;
-    const double MAX_SHOW_DURATION = 20.0; // Wait up to 20 seconds
-    const double MIN_SHOW_DURATION = 0.5;   // Minimum brief show
-    (void)MIN_SHOW_DURATION;
-    
-    /**
-     * Track mouse button state for click detection
-     * We need to detect button press transitions (not held state)
-     * Static map persists across frames to track previous state
-     */
-    static std::map<GLFWwindow*, bool> lastMouseState;
-    int mouseButton = glfwGetMouseButton(wd.window, GLFW_MOUSE_BUTTON_LEFT);
-    bool currentMouseState = (mouseButton == GLFW_PRESS);
-    bool wasPressed = lastMouseState[wd.window];
-    
-    /**
-     * Detect click event (button press transition)
-     * A click occurs when button was not pressed, now is pressed
-     * Get cursor position for double-click detection and logging
-     */
-    if (currentMouseState && !wasPressed) {
-        double xpos, ypos;
-        glfwGetCursorPos(wd.window, &xpos, &ypos);
-        double clickTime = currentTime;
-        
-        /**
-         * Check for double-click pattern
-         * Double-click: two clicks within 0.5 seconds at similar position
-         * Distance threshold is 10 pixels to allow slight mouse movement
-         * Double-click changes audio seed for variety in procedural audio
-         */
-        const double DOUBLE_CLICK_TIME = 0.5;
-        const double DOUBLE_CLICK_DISTANCE = 10.0; // pixels
-        
-        if (clickTime - wd.lastClickTime < DOUBLE_CLICK_TIME &&
-            std::abs(xpos - wd.lastClickX) < DOUBLE_CLICK_DISTANCE &&
-            std::abs(ypos - wd.lastClickY) < DOUBLE_CLICK_DISTANCE) {
-            /**
-             * Double-click detected - change audio seed
-             * Generate new random seed based on current seed
-             * Save to config file so change persists across sessions
-             * This allows users to "randomize" the audio by double-clicking logo
-             */
-            int newSeed = getAudioSeed() + (rand() % 10000);
-            setAudioSeed(newSeed);
-            saveAudioSeed("config/audio_seed.txt");
-            std::cout << "[DEBUG] Double-click detected - Audio seed changed to: " << newSeed << std::endl;
-        }
-        
-        /**
-         * Any click (single or double) triggers scene loading
-         * Store click information for double-click detection next time
-         * Start loading scene immediately on click/touch
-         * Scene loading happens while logo is still visible
-         */
-        wd.clickDetected = true;
-        wd.lastClickTime = clickTime;
-        wd.lastClickX = xpos;
-        wd.lastClickY = ypos;
-        std::cout << "[DEBUG] Click detected at (" << xpos << ", " << ypos 
-                  << ") - starting scene loading" << std::endl;
-        
-        /**
-         * Start lazy loading scene immediately on click
-         * This happens while logo is still visible
-         * Loading indicator will be shown over the logo
-         */
-        if (!wd.sceneLoading && !wd.sceneLoaded) {
-            loadOpeningSceneLazy(wd);
-        }
-    }
-    lastMouseState[wd.window] = currentMouseState;
     
     /**
      * If scene is loading, show loading indicator and wait for completion
@@ -203,32 +182,12 @@ float handleLogoShowing(WindowData& wd, double currentTime) {
         return 1.0f; // Keep logo visible while loading
     }
     
-    /**
-     * If scene finished loading, transition directly to opening scene
-     * Skip fade-out - go straight to opening scene once loaded
-     * This provides immediate feedback after scene loads
-     */
-    if (wd.sceneLoaded && wd.clickDetected) {
-        wd.state = DisplayState::OPENING_SCENE;
-        wd.stateStartTime = currentTime;
-        std::cout << "[DEBUG] Scene loaded - transitioning to OPENING_SCENE" << std::endl;
-        return 1.0f;
-    }
-    
-    /**
-     * Auto-transition after 20 seconds if no interaction
-     * This provides a fallback if user doesn't click
-     * Still loads scene on timeout but user can click earlier
-     */
-    double showElapsed = currentTime - wd.stateStartTime;
-    if (showElapsed >= MAX_SHOW_DURATION) {
-        /**
-         * 20 seconds elapsed - start loading scene automatically
-         * This ensures scene loads even without user interaction
-         */
+    if (ServiceStatusRegistry::AllStarted()) {
         if (!wd.sceneLoading && !wd.sceneLoaded) {
             loadOpeningSceneLazy(wd);
         }
+        wd.state = DisplayState::LOGO_FADE_OUT;
+        wd.stateStartTime = currentTime;
     }
     
     return alpha;
@@ -656,6 +615,11 @@ void handleDisplayState(WindowData& wd, double currentTime, float& alpha) {
  * Handles logo texture, scene rendering, admin mode, and error states
  */
 void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alpha, double& lastFrameTime, int frameCount) {
+    if (wd.state == DisplayState::LOGO_FADE_IN ||
+        wd.state == DisplayState::LOGO_SHOWING ||
+        wd.state == DisplayState::LOGO_FADE_OUT) {
+        return; // Blank white window while testing deferred logo rendering
+    }
     /**
      * Handle opening scene state
      * Opening scene renders language selection cards with procedural background
@@ -664,6 +628,7 @@ void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alph
      */
     if (wd.state == DisplayState::OPENING_SCENE) {
         handleOpeningScene(wd, fbWidth, fbHeight, lastFrameTime, frameCount);
+        renderTranscriptOverlay(fbWidth, fbHeight);
         return; // Skip logo texture rendering for scene state
     }
     
@@ -736,6 +701,7 @@ void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alph
         } catch (...) {
             std::cerr << "[ERROR] Unknown exception during ADMIN_SCENE rendering" << std::endl;
         }
+        renderTranscriptOverlay(fbWidth, fbHeight);
         return; // Skip logo texture rendering for admin state
     }
     
@@ -744,6 +710,7 @@ void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alph
      * Logo is rendered at 50% resolution, centered, maintaining aspect ratio
      * Alpha value controls transparency for fade-in/fade-out effects
      */
+    ensureLogoTextureLoaded(wd);
     if (wd.isValid) {
         TextureLoader::RenderTexture(wd.texture, wd.textureWidth, wd.textureHeight, 
                      fbWidth, fbHeight, alpha);
@@ -764,6 +731,9 @@ void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alph
          */
         renderErrorPlaceholder(fbWidth, fbHeight);
     }
+
+    renderServiceStatusOverlayForWindow(wd, fbWidth, fbHeight);
+    renderTranscriptOverlay(fbWidth, fbHeight);
 }
 
 /**

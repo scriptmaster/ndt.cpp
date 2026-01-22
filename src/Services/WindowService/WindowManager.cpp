@@ -301,6 +301,10 @@ std::vector<WindowData> createWindows() {
             wd.width = width;
             wd.height = height;
             wd.isValid = false;
+            wd.texture = 0;
+            wd.textureWidth = 0;
+            wd.textureHeight = 0;
+            wd.textureLoadAttempted = false;
             wd.isVertical = isVertical;
             wd.isPrimary = isPrimary;
             wd.fadeStartTime = glfwGetTime();  // Record start time
@@ -355,27 +359,6 @@ std::vector<WindowData> createWindows() {
         return windows;
     }
     
-    // Load textures for each window
-    for (auto& wd : windows) {
-        glfwMakeContextCurrent(wd.window);
-        TextureInfo texInfo = TextureLoader::LoadTexture(wd.logoPath.c_str());
-        wd.texture = texInfo.id;
-        wd.textureWidth = texInfo.width;
-        wd.textureHeight = texInfo.height;
-        wd.isValid = (wd.texture != 0);
-        // Start fade-in after texture is ready to avoid a visible blink
-        wd.fadeStartTime = glfwGetTime();
-        wd.stateStartTime = wd.fadeStartTime;
-        wd.state = DisplayState::LOGO_FADE_IN;
-        
-        if (!wd.isValid) {
-            std::cerr << "Warning: Failed to load texture for " << wd.logoPath << std::endl;
-        } else {
-            std::cout << "Loaded texture: " << wd.logoPath << " (" << wd.textureWidth 
-                      << "x" << wd.textureHeight << ")" << std::endl;
-        }
-    }
-    
     // Ensure all windows are visible and topmost
     // Only primary window receives focus
     for (auto& wd : windows) {
@@ -390,10 +373,14 @@ std::vector<WindowData> createWindows() {
         
         // Only focus primary window
         if (wd.isPrimary) {
+            glfwShowWindow(wd.window);
+            glfwRestoreWindow(wd.window);
             glfwFocusWindow(wd.window);
             std::cout << "Primary window focused on monitor" << std::endl;
         }
     }
+
+    std::cout << "[DEBUG] WindowManager: All windows visible and focused" << std::endl;
     
     return windows;
 }

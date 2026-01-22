@@ -38,9 +38,12 @@ public:
     std::string Transcribe(const int16_t* samples, int count) override;
     std::string TranscribeBlocking(const int16_t* samples, int count);
     static STTService* GetInstance();
+    static std::string GetLatestTranscript();
 
 private:
     static STTService* instance_;
+    static std::mutex transcriptMutex_;
+    static std::string latestTranscript_;
     safety::ForeignPointer<whisper_context*, WhisperContextDeleter> ctx_;
     std::string modelPath_;
     std::mutex ctxMutex_;
@@ -59,6 +62,7 @@ private:
     bool EnsureWorkerStarted();
     void EnqueuePcm(const int16_t* samples, int count);
     void WorkerLoop();
+    static void SetLatestTranscript(const std::string& transcript);
 };
 
 #endif // STTSERVICE_H

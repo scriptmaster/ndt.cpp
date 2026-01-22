@@ -52,38 +52,30 @@ void AppHost::ConfigureServices(ServiceCollection& services) {
     
     // STEP 1: Register LoggingService FIRST (MANDATORY)
     // LoggingService constructor will call initLogging() when instantiated
-    services.Register<ILoggingService, LoggingService>();
+    services.Register<ILoggingService, LoggingService>("Logging");
     
     // STEP 2: Register LocalConfigService (loads config files)
-    services.Register<ILocalConfigService, LocalConfigService>();
+    services.Register<ILocalConfigService, LocalConfigService>("LocalConfig");
     
     // STEP 3: Register WindowService (test mode uses TestWindowService)
     const char* envMode = std::getenv("ENV");
     bool isTestMode = envMode && std::string(envMode) == "test";
     if (isTestMode) {
-        services.Register<IWindowService, TestWindowService>();
+        services.Register<IWindowService, TestWindowService>("Window");
     } else {
-        services.Register<IWindowService, WindowService>();
+        services.Register<IWindowService, WindowService>("Window");
     }
     
-    // STEP 4: Register AudioPlayerService (audio seed + waveform)
-    services.Register<IAudioPlayerService, AudioPlayerService>();
-    
-    // STEP 5: Register NetworkService (network init before capture)
-    services.Register<INetworkService, NetworkService>();
-    
-    // STEP 6: Register AudioCaptureService (microphone capture)
-    services.Register<IAudioCaptureService, AudioCaptureService>();
-    
-    // STEP 7: Register AudioProcessorService (speech chunking)
-    services.Register<IAudioProcessorService, AudioProcessorService>();
-    
-    // STEP 8: Register stub services (future functionality)
-    services.Register<IHTTPService, HTTPService>();
-    services.Register<IWSService, WSService>();
-    services.Register<ISTTService, STTService>();
-    services.Register<ILLMService, LLMService>();
-    services.Register<ITTSService, TTSService>();
+    // NOTE: Temporarily disable services after WindowService for blank window testing.
+    services.Register<IAudioPlayerService, AudioPlayerService>("AudioPlayer");
+    services.Register<INetworkService, NetworkService>("Network");
+    services.Register<IAudioCaptureService, AudioCaptureService>("AudioCapture");
+    services.Register<IAudioProcessorService, AudioProcessorService>("AudioProcessor");
+    services.Register<IHTTPService, HTTPService>("HTTP");
+    services.Register<IWSService, WSService>("WS");
+    services.Register<ISTTService, STTService>("STT");
+    services.Register<ILLMService, LLMService>("LLM");
+    services.Register<ITTSService, TTSService>("TTS");
     // services.Register<W2LSService, W2LService>();
 }
 

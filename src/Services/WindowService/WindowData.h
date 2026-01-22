@@ -30,6 +30,7 @@ struct WindowData {
     unsigned int texture;
     int textureWidth;   // Original texture width
     int textureHeight;  // Original texture height
+    bool textureLoadAttempted;
     bool isValid;
     bool isVertical;
     bool isPrimary;     // Only primary window can receive focus

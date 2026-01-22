@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include <functional>
+#include <string>
 #include <typeindex>
 
 /**
@@ -23,6 +24,7 @@ public:
     struct ServiceDescriptor {
         std::type_index interfaceType;
         std::function<std::shared_ptr<IService>()> factory;
+        std::string displayName;
     };
 
     /**
@@ -34,11 +36,17 @@ public:
      */
     template<typename TInterface, typename TImplementation>
     void Register() {
+        Register<TInterface, TImplementation>(typeid(TInterface).name());
+    }
+
+    template<typename TInterface, typename TImplementation>
+    void Register(const std::string& displayName) {
         descriptors_.push_back({
             std::type_index(typeid(TInterface)),
             []() -> std::shared_ptr<IService> {
                 return std::make_shared<TImplementation>();
-            }
+            },
+            displayName
         });
     }
 
@@ -51,9 +59,15 @@ public:
      */
     template<typename TInterface>
     void Register(std::function<std::shared_ptr<IService>()> factory) {
+        Register<TInterface>(typeid(TInterface).name(), factory);
+    }
+
+    template<typename TInterface>
+    void Register(const std::string& displayName, std::function<std::shared_ptr<IService>()> factory) {
         descriptors_.push_back({
             std::type_index(typeid(TInterface)),
-            factory
+            factory,
+            displayName
         });
     }
 
