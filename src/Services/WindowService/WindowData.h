@@ -4,6 +4,8 @@
 #include <GLFW/glfw3.h>
 #include <string>
 #include <vector>
+#include <memory>
+#include "Scene.h"  // Required for std::unique_ptr<Scene>
 
 /**
  * WindowData - Window state and configuration
@@ -11,9 +13,6 @@
  * Single responsibility: Data structures for window management
  * Defines WindowData struct and DisplayState enum used across WindowService
  */
-
-// Forward declaration (full definition in SceneManager.h)
-struct Scene;
 
 enum class DisplayState {
     LOGO_FADE_IN,   // 0.8s fade-in
@@ -51,7 +50,7 @@ struct WindowData {
     int tetraClickCount;   // Count of tetra-clicks (4 clicks in top-right corner)
     double lastTetraClickTime; // Time of last tetra-click
     std::string currentAdminScene; // Current admin scene file
-    struct Scene* openingScene;    // Opening scene (loaded lazily, allocated when needed)
+    std::unique_ptr<Scene> openingScene;    // Opening scene (RAII-managed, loaded lazily)
     bool sceneLoading;             // True if scene is currently loading
     bool sceneLoaded;              // True if scene was successfully loaded
     float loadingProgress;         // Loading progress (0.0 to 1.0)

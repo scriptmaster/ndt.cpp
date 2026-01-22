@@ -250,6 +250,7 @@ std::vector<WindowData> createWindows() {
             
             // Store isPrimary in window user pointer BEFORE setting callbacks
             // This prevents callbacks from accessing uninitialized pointer
+            // Note: GLFW requires void*, so we use raw pointer but ensure cleanup in destroyWindows()
             glfwSetWindowUserPointer(window, new bool(isPrimary));
             
             glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -323,7 +324,7 @@ std::vector<WindowData> createWindows() {
             wd.sceneLoaded = false;      // Not loaded yet (will load on demand)
             wd.loadingProgress = 0.0f;   // No progress yet
             wd.loadingStatus = "";       // No status message yet
-            windows.push_back(wd);
+            windows.push_back(std::move(wd));  // Move instead of copy (unique_ptr is non-copyable)
             
             // Only focus primary window
             if (isPrimary) {
@@ -404,12 +405,10 @@ void cleanupWindows(std::vector<WindowData>& windows) {
         if (wd.isValid && wd.texture != 0) {
             glDeleteTextures(1, &wd.texture);
         }
-        // Clean up scene memory if allocated
-        if (wd.openingScene) {
-            delete wd.openingScene;
-            wd.openingScene = nullptr;
-        }
-        // Clean up user pointer
+        // Clean up scene memory if allocated (automatic via unique_ptr destructor)
+        wd.openingScene.reset();
+        
+        // Clean up user pointer (GLFW stores bool* for isPrimary flag)
         void* userPtr = glfwGetWindowUserPointer(wd.window);
         if (userPtr) {
             delete static_cast<bool*>(userPtr);

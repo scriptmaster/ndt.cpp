@@ -1,4 +1,5 @@
 #include "STTService.h"
+#include "../../safety/safe_scope.h"
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -15,6 +16,13 @@
  * STTService implementation
  * Whisper-backed transcription
  */
+
+// Custom deleter implementation for whisper_context (RAII)
+void WhisperContextDeleter::operator()(whisper_context* ctx) const noexcept {
+    if (ctx) {
+        whisper_free(ctx);
+    }
+}
 
 STTService* STTService::instance_ = nullptr;
 
@@ -82,8 +90,8 @@ std::string resolveModelPath() {
 }
 } // namespace
 
-STTService::STTService() {
-    ctx_ = nullptr;
+STTService::STTService() 
+    : ctx_(nullptr) {
     running_.store(false);
     workerFailed_.store(false);
     available_.store(true);
@@ -97,6 +105,7 @@ STTService::~STTService() {
 }
 
 void STTService::Configure() {
+    safety::SafeBoundary boundary;  // Configuration - exceptions handled at higher level
     modelPath_.clear();
 }
 
@@ -130,7 +139,7 @@ bool STTService::EnsureContextLocked() {
         whisper_context_params cparams = whisper_context_default_params();
         cparams.use_gpu = false;
         cparams.flash_attn = false;
-        ctx_ = whisper_init_from_file_with_params(modelPath_.c_str(), cparams);
+        ctx_.reset(whisper_init_from_file_with_params(modelPath_.c_str(), cparams));
         if (!ctx_) {
             available_.store(false);
             if (!loggedUnavailable_.exchange(true)) {
@@ -147,6 +156,7 @@ bool STTService::EnsureContextLocked() {
 }
 
 bool STTService::Start() {
+    safety::SafeBoundary boundary;  // Startup - exceptions handled
     running_.store(true);
     workerFailed_.store(false);
     available_.store(true);
@@ -167,10 +177,7 @@ void STTService::Stop() {
         queue_.clear();
     }
     std::lock_guard<std::mutex> lock(ctxMutex_);
-    if (ctx_) {
-        whisper_free(ctx_);
-        ctx_ = nullptr;
-    }
+    ctx_.reset();  // Automatic cleanup via unique_ptr and WhisperContextDeleter
     available_.store(false);
     loggedUnavailable_.store(false);
 }
@@ -241,7 +248,7 @@ std::string STTService::TranscribeBlocking(const int16_t* samples, int count) {
     std::cout << "[DEBUG] STT: Transcribe start | samples=" << floatSamples.size()
               << " | sample_rate=16000 | peak=" << peak
               << " | thread=" << std::this_thread::get_id()
-              << " | ctx=" << ctx_ << std::endl;
+              << " | ctx=" << ctx_.get() << std::endl;
 
     whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
     params.print_progress = false;
@@ -252,7 +259,7 @@ std::string STTService::TranscribeBlocking(const int16_t* samples, int count) {
     std::cout << "[DEBUG] STT: whisper_full begin | threads=" << params.n_threads
               << " | language=" << (params.language ? params.language : "null")
               << " | samples=" << static_cast<int>(floatSamples.size()) << std::endl;
-    int whisperResult = whisper_full(ctx_, params, floatSamples.data(), static_cast<int>(floatSamples.size()));
+    int whisperResult = whisper_full(ctx_.get(), params, floatSamples.data(), static_cast<int>(floatSamples.size()));
     if (whisperResult != 0) {
         std::cerr << "[ERROR] STT: whisper_full failed" << std::endl;
         return "";
@@ -260,10 +267,10 @@ std::string STTService::TranscribeBlocking(const int16_t* samples, int count) {
     std::cout << "[DEBUG] STT: whisper_full complete | result=" << whisperResult << std::endl;
 
     std::string transcript;
-    int segments = whisper_full_n_segments(ctx_);
+    int segments = whisper_full_n_segments(ctx_.get());
     std::cout << "[DEBUG] STT: segments=" << segments << std::endl;
     for (int i = 0; i < segments; i++) {
-        const char* text = whisper_full_get_segment_text(ctx_, i);
+        const char* text = whisper_full_get_segment_text(ctx_.get(), i);
         if (text) {
             transcript += text;
         }
@@ -339,6 +346,7 @@ void STTService::EnqueuePcm(const int16_t* samples, int count) {
 }
 
 void STTService::WorkerLoop() {
+    safety::SafeScope scope;  // Worker thread - no exceptions allowed
     std::cout << "[DEBUG] STT: Worker started | thread=" << std::this_thread::get_id() << std::endl;
     while (running_.load()) {
         std::vector<int16_t> pcm;
@@ -387,7 +395,7 @@ void STTService::WorkerLoop() {
             std::cout << "[DEBUG] STT: Transcribe start | samples=" << floatSamples.size()
                       << " | sample_rate=16000 | peak=" << peak
                       << " | thread=" << std::this_thread::get_id()
-                      << " | ctx=" << ctx_ << std::endl;
+                      << " | ctx=" << ctx_.get() << std::endl;
 
             whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
             params.print_progress = false;
@@ -398,7 +406,7 @@ void STTService::WorkerLoop() {
             std::cout << "[DEBUG] STT: whisper_full begin | threads=" << params.n_threads
                       << " | language=" << (params.language ? params.language : "null")
                       << " | samples=" << static_cast<int>(floatSamples.size()) << std::endl;
-            int whisperResult = whisper_full(ctx_, params, floatSamples.data(), static_cast<int>(floatSamples.size()));
+            int whisperResult = whisper_full(ctx_.get(), params, floatSamples.data(), static_cast<int>(floatSamples.size()));
             if (whisperResult != 0) {
                 std::cerr << "[ERROR] STT: whisper_full failed" << std::endl;
                 continue;
@@ -406,10 +414,10 @@ void STTService::WorkerLoop() {
             std::cout << "[DEBUG] STT: whisper_full complete | result=" << whisperResult << std::endl;
 
             std::string transcript;
-            int segments = whisper_full_n_segments(ctx_);
+            int segments = whisper_full_n_segments(ctx_.get());
             std::cout << "[DEBUG] STT: segments=" << segments << std::endl;
             for (int i = 0; i < segments; i++) {
-                const char* text = whisper_full_get_segment_text(ctx_, i);
+                const char* text = whisper_full_get_segment_text(ctx_.get(), i);
                 if (text) {
                     transcript += text;
                 }

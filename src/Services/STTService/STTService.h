@@ -10,6 +10,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <memory>
 
 /**
  * STTService - Speech-to-Text service implementation
@@ -17,6 +18,11 @@
  * Realtime Whisper STT
  */
 struct whisper_context;
+
+// Custom deleter for whisper_context (RAII)
+struct WhisperContextDeleter {
+    void operator()(whisper_context* ctx) const noexcept;
+};
 
 class STTService : public ISTTService {
 public:
@@ -35,7 +41,7 @@ public:
 
 private:
     static STTService* instance_;
-    struct whisper_context* ctx_;
+    std::unique_ptr<whisper_context, WhisperContextDeleter> ctx_;
     std::string modelPath_;
     std::mutex ctxMutex_;
 

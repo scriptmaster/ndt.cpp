@@ -1,5 +1,6 @@
 #include "AppHost.h"
 #include "DI/ServiceCollection.h"
+#include "../safety/safe_scope.h"
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -16,6 +17,8 @@
  * No output is produced before LoggingService is constructed
  */
 int app_main() {
+    safety::SafeBoundary boundary;  // Main application entry - exception boundary
+    
     // Create service collection and app host
     ServiceCollection services;
     AppHost host;

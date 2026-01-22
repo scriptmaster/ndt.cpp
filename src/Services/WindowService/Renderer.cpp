@@ -418,12 +418,12 @@ void loadOpeningSceneLazy(WindowData& wd) {
     wd.loadingStatus = "Initializing...";
     
     /**
-     * Allocate scene structure on heap
-     * Scene is stored as pointer to allow lazy allocation
-     * Memory will be freed when window is cleaned up
+     * Allocate scene structure on heap using std::make_unique (RAII)
+     * Scene is stored as unique_ptr to allow lazy allocation and automatic cleanup
+     * Memory will be freed automatically when unique_ptr is destroyed or reset
      */
     if (!wd.openingScene) {
-        wd.openingScene = new Scene();
+        wd.openingScene = std::make_unique<Scene>();
     }
     
     /**

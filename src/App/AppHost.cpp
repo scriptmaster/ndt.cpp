@@ -1,4 +1,5 @@
 #include "AppHost.h"
+#include "../safety/safe_scope.h"
 #include "../Services/LoggingService/ILoggingService.h"
 #include "../Services/LoggingService/LoggingService.h"
 #include "../Services/LocalConfigService/ILocalConfigService.h"
@@ -87,6 +88,8 @@ void AppHost::ConfigureServices(ServiceCollection& services) {
 }
 
 bool AppHost::Build(ServiceCollection& services) {
+    safety::SafeBoundary boundary;  // Startup/Build - exception boundary
+    
     /**
      * Build ServiceProvider from ServiceCollection
      * 
@@ -128,6 +131,8 @@ bool AppHost::Build(ServiceCollection& services) {
 }
 
 int AppHost::Run() {
+    safety::SafeBoundary boundary;  // Run lifecycle - exception boundary
+    
     /**
      * Run the complete application lifecycle
      * Owns the full lifecycle: Start services → RunLoop → Stop services
