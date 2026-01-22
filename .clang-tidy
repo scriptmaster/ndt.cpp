@@ -1,0 +1,31 @@
+---
+# Safety Infrastructure - Clang-Tidy Configuration
+# Enforces memory safety, exception safety, and thread safety rules
+
+Checks: >
+  -*,
+  safety-smartpointer-in-try,
+  cppcoreguidelines-owning-memory,
+  cppcoreguidelines-no-malloc,
+  bugprone-exception-escape,
+  cert-err58-cpp,
+  concurrency-mt-unsafe
+
+WarningsAsErrors: >
+  safety-smartpointer-in-try,
+  cppcoreguidelines-owning-memory,
+  bugprone-exception-escape
+
+CheckOptions:
+  - key: cppcoreguidelines-owning-memory.LegacyResourceProducers
+    value: '::malloc;::aligned_alloc;::realloc;::calloc;::fopen;::freopen;::tmpfile'
+  - key: cppcoreguidelines-owning-memory.LegacyResourceConsumers
+    value: '::free;::realloc;::freopen;::fclose'
+
+# Header filter: check all project headers
+HeaderFilterRegex: '.*'
+
+# Analysis options
+AnalyzeTemporaryDtors: true
+FormatStyle: file
+...
