@@ -1,5 +1,5 @@
 #include "AppHost.h"
-#include "../safety/safe_scope.h"
+#include "safety/safe_scope.h"
 #include "../Services/LoggingService/ILoggingService.h"
 #include "../Services/LoggingService/LoggingService.h"
 #include "../Services/LocalConfigService/ILocalConfigService.h"

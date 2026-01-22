@@ -62,7 +62,7 @@ C_SRCS = src/App/third_party/whisper/ggml.c src/App/third_party/whisper/ggml-all
 C_OBJS = $(C_SRCS:.c=.o)
 
 # Add directories to include path
-CXXFLAGS += -Isrc -Isrc/App -Isrc/Services -Isrc/App/third_party/whisper -I./include
+CXXFLAGS += -I. -Isrc -Isrc/App -Isrc/Services -Isrc/App/third_party/whisper -I./include
 
 all: $(TARGET) run
 

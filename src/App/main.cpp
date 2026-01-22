@@ -1,6 +1,6 @@
 #include "AppHost.h"
 #include "DI/ServiceCollection.h"
-#include "../safety/safe_scope.h"
+#include "safety/safe_scope.h"
 #ifdef _WIN32
 #include <windows.h>
 #endif

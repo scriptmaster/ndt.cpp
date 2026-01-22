@@ -1,5 +1,5 @@
 #include "STTService.h"
-#include "../../safety/safe_scope.h"
+#include "safety/safe_scope.h"
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
