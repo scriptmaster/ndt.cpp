@@ -18,6 +18,8 @@
 static HWAVEIN hWaveIn = NULL;
 static WAVEFORMATEX wfx = {0};
 static WAVEHDR waveHdr[2] = {0};
+static std::vector<short> waveBuffer0;  // RAII-managed buffer for waveHdr[0]
+static std::vector<short> waveBuffer1;  // RAII-managed buffer for waveHdr[1]
 static std::vector<short> capturedSamples;
 static bool audioCapturing = false;
 static int captureSampleRate = 44100;
@@ -446,12 +448,20 @@ bool initAudioCapture(int sampleRate) {
         return false;
     }
     
+    // Allocate buffers using std::vector (RAII-managed)
+    waveBuffer0.resize(CAPTURE_BUFFER_SIZE);
+    waveBuffer1.resize(CAPTURE_BUFFER_SIZE);
+    
     // Prepare buffers
+    waveHdr[0].lpData = (LPSTR)waveBuffer0.data();
+    waveHdr[0].dwBufferLength = CAPTURE_BUFFER_SIZE * sizeof(short);
+    waveHdr[0].dwFlags = 0;
+    
+    waveHdr[1].lpData = (LPSTR)waveBuffer1.data();
+    waveHdr[1].dwBufferLength = CAPTURE_BUFFER_SIZE * sizeof(short);
+    waveHdr[1].dwFlags = 0;
+    
     for (int i = 0; i < 2; i++) {
-        waveHdr[i].lpData = (LPSTR)malloc(CAPTURE_BUFFER_SIZE * sizeof(short));
-        waveHdr[i].dwBufferLength = CAPTURE_BUFFER_SIZE * sizeof(short);
-        waveHdr[i].dwFlags = 0;
-        
         result = waveInPrepareHeader(hWaveIn, &waveHdr[i], sizeof(WAVEHDR));
         if (result != MMSYSERR_NOERROR) {
             std::cerr << "[ERROR] Audio: waveInPrepareHeader failed: " << result << std::endl;
@@ -469,18 +479,19 @@ void cleanupAudioCapture() {
     stopAudioCapture();
     
     if (hWaveIn) {
-        // Free buffers
+        // Buffers are RAII-managed by std::vector - no manual free needed
+        // Just clear the pointers
         for (int i = 0; i < 2; i++) {
-            if (waveHdr[i].lpData) {
-                free(waveHdr[i].lpData);
-                waveHdr[i].lpData = NULL;
-            }
+            waveHdr[i].lpData = NULL;
         }
         
         waveInClose(hWaveIn);
         hWaveIn = NULL;
     }
     
+    // Clear RAII buffers
+    waveBuffer0.clear();
+    waveBuffer1.clear();
     capturedSamples.clear();
     std::cout << "[DEBUG] Audio: Capture cleaned up" << std::endl;
 }

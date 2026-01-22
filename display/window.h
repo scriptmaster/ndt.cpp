@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <string>
 #include <vector>
+#include <memory>
 
 // Forward declaration (full definition in scene.h)
 struct Scene;
@@ -42,7 +43,7 @@ struct WindowData {
     std::vector<double> adminClickTimes; // Times of admin clicks
     std::vector<std::pair<double, double>> adminClickPositions; // Positions of admin clicks
     std::string currentAdminScene; // Current admin scene file
-    struct Scene* openingScene;    // Opening scene (loaded lazily, allocated when needed)
+    std::unique_ptr<Scene> openingScene;    // Opening scene (loaded lazily, RAII managed)
     bool sceneLoading;             // True if scene is currently loading
     bool sceneLoaded;              // True if scene was successfully loaded
     float loadingProgress;         // Loading progress (0.0 to 1.0)

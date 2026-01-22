@@ -5,6 +5,7 @@
 #include "display/admin.h"
 #include "display/app.h"
 #include "display/render.h"
+#include "safety/safe_scope.h"
 #include <GLFW/glfw3.h>
 
 #ifdef _WIN32
@@ -22,6 +23,10 @@
  */
 
 int main() {
+    // Mark this as a SafeBoundary - main() is an exception boundary
+    // Exceptions are allowed here and will be caught
+    safety::SafeBoundary boundary;
+    
     /**
      * Initialize logging system first
      * This hides the console window on Windows and redirects output to log file

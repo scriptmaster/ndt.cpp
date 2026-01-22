@@ -33,14 +33,15 @@ void window_focus_callback(GLFWwindow* window, int focused) {
     std::cout << "[DEBUG] window_focus_callback called, focused: " << focused << std::endl;
     if (!window || focused) return;
     
-    // Get isPrimary flag from user pointer
+    // Get WindowData from user pointer
     void* userPtr = glfwGetWindowUserPointer(window);
     if (!userPtr) {
         std::cout << "[DEBUG] window_focus_callback: userPtr is null" << std::endl;
         return; // Safety check - user pointer not set yet
     }
     
-    bool isPrimary = *static_cast<bool*>(userPtr);
+    WindowData* wd = static_cast<WindowData*>(userPtr);
+    bool isPrimary = wd->isPrimary;
     std::cout << "[DEBUG] window_focus_callback: isPrimary=" << isPrimary << std::endl;
     
     // Only restore focus for primary window
@@ -57,14 +58,15 @@ void window_iconify_callback(GLFWwindow* window, int iconified) {
     std::cout << "[DEBUG] window_iconify_callback called, iconified: " << iconified << std::endl;
     if (!window || !iconified) return;
     
-    // Get isPrimary flag from user pointer
+    // Get WindowData from user pointer
     void* userPtr = glfwGetWindowUserPointer(window);
     if (!userPtr) {
         std::cout << "[DEBUG] window_iconify_callback: userPtr is null" << std::endl;
         return; // Safety check - user pointer not set yet
     }
     
-    bool isPrimary = *static_cast<bool*>(userPtr);
+    WindowData* wd = static_cast<WindowData*>(userPtr);
+    bool isPrimary = wd->isPrimary;
     std::cout << "[DEBUG] window_iconify_callback: isPrimary=" << isPrimary << std::endl;
     
     // Restore visibility - focus only if primary
@@ -75,11 +77,12 @@ void window_iconify_callback(GLFWwindow* window, int iconified) {
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (!window || button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS) return;
     
-    // Get isPrimary flag from user pointer
+    // Get WindowData from user pointer
     void* userPtr = glfwGetWindowUserPointer(window);
     if (!userPtr) return;
     
-    bool isPrimary = *static_cast<bool*>(userPtr);
+    WindowData* wd = static_cast<WindowData*>(userPtr);
+    bool isPrimary = wd->isPrimary;
     
     // Get current mouse position
     double xpos, ypos;
@@ -240,7 +243,9 @@ std::vector<WindowData> createWindows() {
             
             // Store isPrimary in window user pointer BEFORE setting callbacks
             // This prevents callbacks from accessing uninitialized pointer
-            glfwSetWindowUserPointer(window, new bool(isPrimary));
+            // Note: User pointer will be updated after WindowData is added to vector
+            // to point to the actual WindowData
+            glfwSetWindowUserPointer(window, nullptr);  // Temporarily null
             
             glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
             glfwSetWindowFocusCallback(window, window_focus_callback);
@@ -315,6 +320,10 @@ std::vector<WindowData> createWindows() {
             wd.loadingProgress = 0.0f;   // No progress yet
             wd.loadingStatus = "";       // No status message yet
             windows.push_back(wd);
+            
+            // Store pointer to WindowData in user pointer (after adding to vector)
+            // This avoids dynamic allocation of bool*
+            glfwSetWindowUserPointer(window, &windows.back());
             
             // Only focus primary window
             if (isPrimary) {
@@ -391,17 +400,11 @@ void cleanupWindows(std::vector<WindowData>& windows) {
         if (wd.isValid && wd.texture != 0) {
             glDeleteTextures(1, &wd.texture);
         }
-        // Clean up scene memory if allocated
-        if (wd.openingScene) {
-            delete wd.openingScene;
-            wd.openingScene = nullptr;
-        }
-        // Clean up user pointer
-        void* userPtr = glfwGetWindowUserPointer(wd.window);
-        if (userPtr) {
-            delete static_cast<bool*>(userPtr);
-            glfwSetWindowUserPointer(wd.window, nullptr);
-        }
+        // Scene memory is automatically cleaned up by unique_ptr
+        // No explicit delete needed - RAII handles it
+        
+        // Clean up user pointer - no longer dynamically allocated
+        glfwSetWindowUserPointer(wd.window, nullptr);
         glfwDestroyWindow(wd.window);
     }
     windows.clear();

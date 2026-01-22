@@ -9,6 +9,7 @@
 #include "admin.h"
 #include "scene_logger.h"
 #include "opening_scene.h"
+#include "safety/safe_scope.h"
 #include <GLFW/glfw3.h>
 
 #ifdef _WIN32
@@ -36,6 +37,9 @@
  * Wraps initialization in try-catch to handle any exceptions gracefully
  */
 bool initializeSystems() {
+    // Mark as SafeBoundary - initialization function where exceptions are allowed
+    safety::SafeBoundary boundary;
+    
     std::cout << "[DEBUG] Initializing audio..." << std::endl;
     
     // Initialize scene logger (which also initializes audio logger)
@@ -254,6 +258,10 @@ void maintainWindowVisibility(std::vector<WindowData>& windows) {
  * Each iteration: renders all windows, processes input, updates audio, maintains visibility
  */
 void runMainLoop(std::vector<WindowData>& windows) {
+    // Mark as SafeScope - main loop is a no-throw zone
+    // Exceptions should not escape from this worker loop
+    safety::SafeScope scope;
+    
     /**
      * Initialize timing for frame rate calculations
      * Last frame time is used to calculate delta time between frames
