@@ -52,8 +52,8 @@ TARGET = ndt_display
 SRCS = main.cpp display/logging.cpp display/window.cpp display/texture.cpp display/scene.cpp display/audio.cpp display/admin.cpp display/app.cpp display/render.cpp display/network.cpp display/scene_logger.cpp display/opening_scene.cpp
 OBJS = $(SRCS:.cpp=.o)
 
-# Add display directory to include path
-CXXFLAGS += -Idisplay
+# Add display and safety directories to include path
+CXXFLAGS += -Idisplay -Isafety
 
 all: $(TARGET) run
 
