@@ -12,3 +12,4 @@ bin
 *.wixproj.user.targets
 *.wixproj.user.props
 *.dll
+compile_commands.json

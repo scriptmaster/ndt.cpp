@@ -214,8 +214,55 @@ clang: CC = clang
 clang: CXXFLAGS += -fsanitize=address -fsanitize=undefined -fsanitize=leak -fno-omit-frame-pointer -g
 clang: CFLAGS += -fsanitize=address -fsanitize=undefined -fsanitize=leak -fno-omit-frame-pointer -g
 clang: LDFLAGS += -fsanitize=address -fsanitize=undefined -fsanitize=leak
-clang: clean build
+clang: clean compile_commands build
 	@echo "Built with clang++ and sanitizers enabled"
+
+# Generate compile_commands.json for IDE/tooling support
+.PHONY: compile_commands
+compile_commands:
+	@echo "Generating compile_commands.json..."
+	@echo "[" > compile_commands.json
+	@first=true; \
+	for src in $(SRCS); do \
+		if [ "$$first" = "true" ]; then \
+			first=false; \
+		else \
+			echo "," >> compile_commands.json; \
+		fi; \
+		obj=$${src%.cpp}.o; \
+		dir=$$(pwd); \
+		cmd="$(CXX) $(CXXFLAGS) -c $$src -o $$obj"; \
+		cmd=$$(echo "$$cmd" | sed 's/"/\\"/g'); \
+		echo "  {" >> compile_commands.json; \
+		echo "    \"directory\": \"$$dir\"," >> compile_commands.json; \
+		echo "    \"command\": \"$$cmd\"," >> compile_commands.json; \
+		echo "    \"file\": \"$$src\"" >> compile_commands.json; \
+		echo -n "  }" >> compile_commands.json; \
+	done; \
+	for src in $(C_SRCS); do \
+		echo "," >> compile_commands.json; \
+		obj=$${src%.c}.o; \
+		dir=$$(pwd); \
+		cmd="$(CC) $(CFLAGS) -c $$src -o $$obj"; \
+		cmd=$$(echo "$$cmd" | sed 's/"/\\"/g'); \
+		echo "  {" >> compile_commands.json; \
+		echo "    \"directory\": \"$$dir\"," >> compile_commands.json; \
+		echo "    \"command\": \"$$cmd\"," >> compile_commands.json; \
+		echo "    \"file\": \"$$src\"" >> compile_commands.json; \
+		echo -n "  }" >> compile_commands.json; \
+	done
+	@echo "" >> compile_commands.json
+	@echo "]" >> compile_commands.json
+	@echo "Generated compile_commands.json with $$(echo $(SRCS) $(C_SRCS) | wc -w) entries"
+
+# Tidy target - format and clean up code (does not use clang-tidy)
+.PHONY: tidy
+tidy:
+	@echo "Running code cleanup and formatting..."
+	@echo "Note: This target does not run clang-tidy"
+	@echo "Checking for trailing whitespace..."
+	@find src -name "*.cpp" -o -name "*.h" | xargs grep -l "[[:space:]]$$" || true
+	@echo "Code tidy check complete"
 
 run:
 	@echo "Running latest versioned executable"
