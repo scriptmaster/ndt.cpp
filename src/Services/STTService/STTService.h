@@ -2,6 +2,7 @@
 #define STTSERVICE_H
 
 #include "ISTTService.h"
+#include "safety/foreign_pointer.h"
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -17,6 +18,11 @@
  * Realtime Whisper STT
  */
 struct whisper_context;
+
+// Custom deleter for whisper_context (RAII)
+struct WhisperContextDeleter {
+    void operator()(whisper_context* ctx) const noexcept;
+};
 
 class STTService : public ISTTService {
 public:
@@ -35,7 +41,7 @@ public:
 
 private:
     static STTService* instance_;
-    struct whisper_context* ctx_;
+    safety::ForeignPointer<whisper_context*, WhisperContextDeleter> ctx_;
     std::string modelPath_;
     std::mutex ctxMutex_;
 

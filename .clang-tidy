@@ -1,0 +1,34 @@
+# clang-tidy configuration for memory-safety enforcement
+# Enforces strict memory-safety, exception-safety, and thread-safety
+
+# Checks to enable
+Checks: >
+  -*,
+  safety-smartpointer-in-try,
+  safety-foreign-pointer,
+  cppcoreguidelines-owning-memory,
+  cppcoreguidelines-no-malloc,
+  bugprone-exception-escape,
+  cert-err58-cpp,
+  concurrency-mt-unsafe
+
+# Treat these checks as errors (compilation will fail)
+WarningsAsErrors: >
+  safety-smartpointer-in-try,
+  safety-foreign-pointer,
+  cppcoreguidelines-owning-memory,
+  bugprone-exception-escape
+
+# Check options
+CheckOptions:
+  # cppcoreguidelines-owning-memory: Allow gsl::owner annotations
+  - key: cppcoreguidelines-owning-memory.LegacyResourceProducers
+    value: '::new;::malloc;::calloc;::realloc'
+  - key: cppcoreguidelines-owning-memory.LegacyResourceConsumers
+    value: '::delete;::free'
+
+# Header filter (check all headers in the project)
+HeaderFilterRegex: '(src|safety|tools)/.*\.(h|hpp)$'
+
+# Format style for fix-its
+FormatStyle: file
