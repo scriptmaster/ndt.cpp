@@ -16,12 +16,37 @@ This document summarizes the safety infrastructure refactoring implemented in th
 
 ### 1. Safety Infrastructure (New Files)
 
-#### `safety/smart_pointer.h`
-- Generic RAII wrapper for C-style resources
+#### Three Universal Pointer Types
+
+| Type | Throws | Usage |
+|------|--------|-------|
+| `safety::SafePointer` | ❌ | Everywhere (worker threads, realtime, loops) |
+| `safety::SafeResultPointer` | ❌ | APIs, workers (with error messages) |
+| `safety::SmartPointer` | ✅ | Startup / boundary only (inside try/catch) |
+
+#### `safety/safe_pointer.h` - SafePointer
+- Non-throwing RAII wrapper for C-style resources
+- Template class: `SafePointer<T, CreateFn, DestroyFn>`
+- Returns nullptr on failure (no exceptions)
+- Use everywhere, including worker threads
+- Non-copyable, movable
+- Destructor calls `DestroyFn(ptr)` noexcept
+
+#### `safety/safe_result_pointer.h` - SafeResultPointer
+- Non-throwing RAII wrapper with error messages
+- Template class: `SafeResultPointer<T, CreateFn, DestroyFn>`
+- Stores error message on failure (no exceptions)
+- Use in APIs and workers for better diagnostics
+- Non-copyable, movable
+- Destructor calls `DestroyFn(ptr)` noexcept
+
+#### `safety/smart_pointer.h` - SmartPointer
+- Throwing RAII wrapper for C-style resources
 - Template class: `SmartPointer<T, CreateFn, DestroyFn>`
 - Constructor takes `std::string` argument
 - Calls `CreateFn(arg.c_str())` to create resource
 - Throws `std::runtime_error` if creation fails
+- Use ONLY in startup/boundary code inside try/catch
 - Non-copyable, movable
 - Destructor calls `DestroyFn(ptr)` noexcept
 

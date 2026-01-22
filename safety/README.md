@@ -6,19 +6,94 @@ This directory contains reusable C++ safety infrastructure for enforcing memory-
 
 The safety infrastructure provides:
 
-1. **RAII wrappers** for C-style resources (`SmartPointer`)
+1. **Three RAII pointer types** for C-style resources with different exception behaviors
 2. **Scope markers** for distinguishing safe zones (`SafeScope`, `SafeBoundary`)
 3. **Clang-tidy checks** for compile-time enforcement
 
+## Pointer Types Summary
+
+| Type | Throws | Usage |
+|------|--------|-------|
+| `safety::SafePointer` | ❌ | Everywhere (worker threads, realtime, loops) |
+| `safety::SafeResultPointer` | ❌ | APIs, workers (with error messages) |
+| `safety::SmartPointer` | ✅ | Startup / boundary only (inside try/catch) |
+
 ## Components
 
-### `smart_pointer.h`
+### `safe_pointer.h` - SafePointer
 
-A generic RAII wrapper for C-style resources with custom create/destroy functions.
+**Non-throwing RAII wrapper for C-style resources. Use everywhere.**
+
+**Features:**
+- Automatic cleanup via destructor (RAII)
+- Does NOT throw exceptions (safe for all contexts)
+- Returns nullptr on failure (check with `if (ptr)`)
+- Non-copyable (prevents double-free)
+- Movable (allows transfer of ownership)
+
+**Example:**
+```cpp
+#include "safety/safe_pointer.h"
+
+// Worker thread or realtime code - no exceptions
+void workerLoop() {
+    safety::SafeScope scope;
+    
+    while (running) {
+        safety::SafePointer<Resource, decltype(&create_resource), decltype(&destroy_resource)>
+            ptr("config.txt", create_resource, destroy_resource);
+        
+        if (ptr) {
+            // Use ptr.get()
+            process(ptr.get());
+        } else {
+            // Handle failure without throwing
+            logError("Failed to create resource");
+        }
+    }
+}
+```
+
+### `safe_result_pointer.h` - SafeResultPointer
+
+**Non-throwing RAII wrapper with error messages. Use in APIs and workers.**
+
+**Features:**
+- Automatic cleanup via destructor (RAII)
+- Does NOT throw exceptions (safe for all contexts)
+- Stores error message on failure
+- Check success with `if (ptr)` or `has_error()`
+- Get error with `ptr.error()`
+- Non-copyable (prevents double-free)
+- Movable (allows transfer of ownership)
+
+**Example:**
+```cpp
+#include "safety/safe_result_pointer.h"
+
+// API function returning status
+bool loadModel(const char* path) {
+    safety::SafeResultPointer<Model, decltype(&create_model), decltype(&destroy_model)>
+        model(path, create_model, destroy_model);
+    
+    if (!model) {
+        std::cerr << "Error: " << model.error() << std::endl;
+        return false;
+    }
+    
+    // Use model.get()
+    return true;
+}
+```
+
+### `smart_pointer.h` - SmartPointer
+
+**Throwing RAII wrapper for C-style resources. Use ONLY in startup/init code inside try/catch.**
 
 **Features:**
 - Automatic cleanup via destructor (RAII)
 - Throws exception on creation failure
+- MUST be used inside try/catch blocks
 - Non-copyable (prevents double-free)
 - Movable (allows transfer of ownership)
 
@@ -26,25 +101,21 @@ A generic RAII wrapper for C-style resources with custom create/destroy function
 ```cpp
 #include "safety/smart_pointer.h"
 
-// Define wrapper functions for C API
-whisper_context* create_whisper(const char* path) {
-    return whisper_init_from_file(path);
-}
-
-void destroy_whisper(whisper_context* ctx) {
-    whisper_free(ctx);
-}
-
-// Use SmartPointer in a try/catch block
-try {
-    safety::SmartPointer<whisper_context, decltype(&create_whisper), decltype(&destroy_whisper)>
-        ctx("model.bin", create_whisper, destroy_whisper);
+// Startup code - exceptions handled
+void init() {
+    safety::SafeBoundary boundary;
     
-    // Use ctx.get() to access raw pointer
-    whisper_full(ctx.get(), ...);
-    
-} catch (const std::runtime_error& e) {
-    std::cerr << "Failed to create resource: " << e.what() << std::endl;
+    try {
+        safety::SmartPointer<whisper_context, decltype(&create_whisper), decltype(&destroy_whisper)>
+            ctx("model.bin", create_whisper, destroy_whisper);
+        
+        // Use ctx.get() to access raw pointer
+        whisper_full(ctx.get(), ...);
+        
+    } catch (const std::runtime_error& e) {
+        std::cerr << "Failed to create resource: " << e.what() << std::endl;
+        throw;  // Propagate to caller
+    }
 }
 // Automatic cleanup when SmartPointer goes out of scope
 ```
@@ -126,7 +197,27 @@ Use SafePointer or SafeResultPointer if exceptions are not handled.
 
 ## Usage Guidelines
 
+### Choosing the Right Pointer Type
+
+**Use `SafePointer`:**
+- ✅ Worker threads and realtime loops
+- ✅ Any code in `SafeScope` contexts
+- ✅ When you don't need error messages
+- ✅ Performance-critical paths
+
+**Use `SafeResultPointer`:**
+- ✅ APIs that need to return error information
+- ✅ Worker threads that need diagnostic messages
+- ✅ When you want structured error handling without exceptions
+
+**Use `SmartPointer`:**
+- ✅ Startup and initialization code
+- ✅ Inside `SafeBoundary` contexts
+- ✅ Always inside try/catch blocks
+- ✅ When exception-based error handling is acceptable
+
 ### DO:
+✅ Use `SafePointer` or `SafeResultPointer` in worker threads  
 ✅ Use `SmartPointer` for C-style resources in startup/init code  
 ✅ Always construct `SmartPointer` inside try/catch blocks  
 ✅ Mark worker threads with `SafeScope`  
@@ -138,7 +229,7 @@ Use SafePointer or SafeResultPointer if exceptions are not handled.
 ❌ Use raw owning pointers (`T*` with `new`/`delete`)  
 ❌ Use `malloc`/`free` for memory allocation  
 ❌ Construct `SmartPointer` outside try/catch  
-❌ Use `SmartPointer` in worker threads (use SafePointer instead)  
+❌ Use `SmartPointer` in worker threads (use `SafePointer` instead)  
 ❌ Suppress clang-tidy warnings  
 ❌ Add project-specific names to safety infrastructure
 
