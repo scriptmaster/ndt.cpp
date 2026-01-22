@@ -97,6 +97,10 @@ void maintainWindowVisibility(std::vector<WindowData>& windows) {
             continue;
         }
         if (wd.isPrimary) {
+            const bool allowAltTab = (wd.state == DisplayState::LOGO_SHOWING);
+            if (allowAltTab) {
+                continue; // Allow Alt+Tab/minimize while waiting for click
+            }
             /**
              * Check current visibility and iconified state
              * If window was minimized or hidden (e.g., by Alt+Tab), restore it

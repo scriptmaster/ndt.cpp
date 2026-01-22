@@ -615,11 +615,6 @@ void handleDisplayState(WindowData& wd, double currentTime, float& alpha) {
  * Handles logo texture, scene rendering, admin mode, and error states
  */
 void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alpha, double& lastFrameTime, int frameCount) {
-    if (wd.state == DisplayState::LOGO_FADE_IN ||
-        wd.state == DisplayState::LOGO_SHOWING ||
-        wd.state == DisplayState::LOGO_FADE_OUT) {
-        return; // Blank white window while testing deferred logo rendering
-    }
     /**
      * Handle opening scene state
      * Opening scene renders language selection cards with procedural background
