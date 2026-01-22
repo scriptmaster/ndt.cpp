@@ -2,6 +2,7 @@
 #define STTSERVICE_H
 
 #include "ISTTService.h"
+#include "safety/foreign_pointer.h"
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -10,7 +11,6 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include <memory>
 
 /**
  * STTService - Speech-to-Text service implementation
@@ -41,7 +41,7 @@ public:
 
 private:
     static STTService* instance_;
-    std::unique_ptr<whisper_context, WhisperContextDeleter> ctx_;
+    safety::ForeignPointer<whisper_context*, WhisperContextDeleter> ctx_;
     std::string modelPath_;
     std::mutex ctxMutex_;
 

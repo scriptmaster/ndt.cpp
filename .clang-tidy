@@ -5,6 +5,7 @@
 Checks: >
   -*,
   safety-smartpointer-in-try,
+  safety-foreign-pointer,
   cppcoreguidelines-owning-memory,
   cppcoreguidelines-no-malloc,
   bugprone-exception-escape,
@@ -14,6 +15,7 @@ Checks: >
 # Treat these checks as errors (compilation will fail)
 WarningsAsErrors: >
   safety-smartpointer-in-try,
+  safety-foreign-pointer,
   cppcoreguidelines-owning-memory,
   bugprone-exception-escape
 

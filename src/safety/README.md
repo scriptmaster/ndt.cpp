@@ -6,7 +6,7 @@ This directory (`src/safety/`) contains reusable C++ safety infrastructure for e
 
 The safety infrastructure provides:
 
-1. **Three RAII pointer types** for C-style resources with different exception behaviors
+1. **Four RAII pointer types** for different resource ownership scenarios
 2. **Scope markers** for distinguishing safe zones (`SafeScope`, `SafeBoundary`)
 3. **Clang-tidy checks** for compile-time enforcement
 
@@ -17,8 +17,57 @@ The safety infrastructure provides:
 | `safety::SafePointer` | ❌ | Everywhere (worker threads, realtime, loops) |
 | `safety::SafeResultPointer` | ❌ | APIs, workers (with error messages) |
 | `safety::SmartPointer` | ✅ | Startup / boundary only (inside try/catch) |
+| `safety::ForeignPointer` | ❌ | C/FFI/GPU/OS handles (owned resources) |
+
+## Application-Level Ownership Rules
+
+1. **DO NOT** use raw owning pointers (`T*` with `new`/`delete`)
+2. **Application-level ownership** must use:
+   - `safety::SafePointer` - For general use
+   - `safety::SafeResultPointer` - For APIs needing error info
+3. **Throwing ownership** is ONLY allowed via:
+   - `safety::SmartPointer` - Inside try/catch at startup boundaries
+4. **C/FFI/GPU/OS handles** MUST use:
+   - `safety::ForeignPointer` - For whisper, GLFW, GPU contexts, etc.
+5. **C++ objects** (Scene, etc.) use:
+   - `std::unique_ptr` - Standard C++ RAII
 
 ## Components
+
+### `foreign_pointer.h` - ForeignPointer
+
+**RAII wrapper for C/FFI/GPU/OS handles. Use for all foreign resources.**
+
+**Features:**
+- Automatic cleanup via custom deleter (RAII)
+- Does NOT throw exceptions (safe for all contexts)
+- Non-copyable (prevents double-free)
+- Movable (allows transfer of ownership)
+- Template-based with custom deleter support
+
+**Example:**
+```cpp
+#include "safety/foreign_pointer.h"
+
+// Custom deleter for C API resource
+struct WhisperDeleter {
+    void operator()(whisper_context* ctx) const noexcept {
+        if (ctx) whisper_free(ctx);
+    }
+};
+
+// Declare as member variable
+safety::ForeignPointer<whisper_context*, WhisperDeleter> ctx_;
+
+// Initialize
+ctx_.reset(whisper_init_from_file("model.bin"));
+
+// Use
+if (ctx_) {
+    whisper_full(ctx_.get(), params, data, size);
+}
+// Automatic cleanup when ForeignPointer is destroyed
+```
 
 ### `safe_pointer.h` - SafePointer
 
@@ -199,6 +248,13 @@ Use SafePointer or SafeResultPointer if exceptions are not handled.
 
 ### Choosing the Right Pointer Type
 
+**Use `ForeignPointer`:**
+- ✅ C/FFI handles (whisper, ggml, etc.)
+- ✅ GPU contexts and resources
+- ✅ OS handles (file descriptors, etc.)
+- ✅ Any foreign library resource requiring cleanup
+- ✅ GLFW windows and contexts
+
 **Use `SafePointer`:**
 - ✅ Worker threads and realtime loops
 - ✅ Any code in `SafeScope` contexts
@@ -216,7 +272,13 @@ Use SafePointer or SafeResultPointer if exceptions are not handled.
 - ✅ Always inside try/catch blocks
 - ✅ When exception-based error handling is acceptable
 
+**Use `std::unique_ptr`:**
+- ✅ C++ objects (Scene, custom classes, etc.)
+- ✅ Standard C++ RAII management
+- ✅ When not using C/FFI resources
+
 ### DO:
+✅ Use `ForeignPointer` for ALL C/FFI/GPU/OS handles  
 ✅ Use `SafePointer` or `SafeResultPointer` in worker threads  
 ✅ Use `SmartPointer` for C-style resources in startup/init code  
 ✅ Always construct `SmartPointer` inside try/catch blocks  
@@ -230,6 +292,7 @@ Use SafePointer or SafeResultPointer if exceptions are not handled.
 ❌ Use `malloc`/`free` for memory allocation  
 ❌ Construct `SmartPointer` outside try/catch  
 ❌ Use `SmartPointer` in worker threads (use `SafePointer` instead)  
+❌ Use `std::unique_ptr` for C/FFI handles (use `ForeignPointer` instead)  
 ❌ Suppress clang-tidy warnings  
 ❌ Add project-specific names to safety infrastructure
 

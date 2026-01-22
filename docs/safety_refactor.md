@@ -16,13 +16,22 @@ This document summarizes the safety infrastructure refactoring implemented in th
 
 ### 1. Safety Infrastructure (New Files)
 
-#### Three Universal Pointer Types
+#### Four Universal Pointer Types
 
 | Type | Throws | Usage |
 |------|--------|-------|
 | `safety::SafePointer` | ❌ | Everywhere (worker threads, realtime, loops) |
 | `safety::SafeResultPointer` | ❌ | APIs, workers (with error messages) |
 | `safety::SmartPointer` | ✅ | Startup / boundary only (inside try/catch) |
+| `safety::ForeignPointer` | ❌ | C/FFI/GPU/OS handles (owned resources) |
+
+#### `src/safety/foreign_pointer.h` - ForeignPointer
+- RAII wrapper for C/FFI/GPU/OS handles
+- Template class: `ForeignPointer<T, Deleter>`
+- Custom deleter support for any cleanup function
+- Use for whisper_context, GLFW handles, GPU contexts, etc.
+- Non-copyable, movable
+- Destructor calls `Deleter(ptr)` noexcept
 
 #### `src/safety/safe_pointer.h` - SafePointer
 - Non-throwing RAII wrapper for C-style resources
@@ -62,9 +71,15 @@ This document summarizes the safety infrastructure refactoring implemented in th
 - Emits error if NOT inside try/catch block
 - Diagnostic: "SmartPointer must be constructed inside a try/catch block. Use SafePointer or SafeResultPointer if exceptions are not handled."
 
+#### `tools/clang-tidy/ForeignPointerCheck.h` and `.cpp`
+- Custom clang-tidy check for C/FFI handle ownership
+- Identifies `std::unique_ptr` with custom deleters
+- Suggests using `safety::ForeignPointer` instead
+- Enforces consistent ownership semantics in safety framework
+
 #### `.clang-tidy`
 - Project-wide clang-tidy configuration
-- Enables safety checks: `safety-smartpointer-in-try`, `cppcoreguidelines-owning-memory`, `cppcoreguidelines-no-malloc`, `bugprone-exception-escape`
+- Enables safety checks: `safety-smartpointer-in-try`, `safety-foreign-pointer`, `cppcoreguidelines-owning-memory`, `cppcoreguidelines-no-malloc`, `bugprone-exception-escape`
 - Treats violations as errors (build fails)
 
 ### 2. Code Refactoring
@@ -96,7 +111,7 @@ wd.openingScene = std::make_unique<Scene>();  // RAII allocation
 wd.openingScene.reset();  // Automatic cleanup via unique_ptr
 ```
 
-#### Whisper Context Management
+#### Whisper Context Management (C/FFI Handle)
 
 **Before (Raw Pointers):**
 ```cpp
@@ -111,17 +126,18 @@ if (ctx_) {
 }
 ```
 
-**After (RAII with Custom Deleter):**
+**After (RAII with ForeignPointer):**
 ```cpp
 // STTService.h
 struct WhisperContextDeleter {
     void operator()(whisper_context* ctx) const noexcept;
 };
-std::unique_ptr<whisper_context, WhisperContextDeleter> ctx_;
+safety::ForeignPointer<whisper_context*, WhisperContextDeleter> ctx_;
 
 // STTService.cpp
 ctx_.reset(whisper_init_from_file_with_params(modelPath_.c_str(), cparams));
-// Automatic cleanup via unique_ptr + custom deleter
+// Automatic cleanup via ForeignPointer + custom deleter
+// Use ctx_.get() for C API calls
 ```
 
 #### Scope Markers Added
