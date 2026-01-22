@@ -1,6 +1,6 @@
 # Safety Infrastructure
 
-This directory contains reusable C++ safety infrastructure for enforcing memory-safety, exception-safety, and thread-safety across any C++ project.
+This directory (`src/safety/`) contains reusable C++ safety infrastructure for enforcing memory-safety, exception-safety, and thread-safety across any C++ project.
 
 ## Overview
 

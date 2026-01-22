@@ -24,7 +24,7 @@ This document summarizes the safety infrastructure refactoring implemented in th
 | `safety::SafeResultPointer` | ❌ | APIs, workers (with error messages) |
 | `safety::SmartPointer` | ✅ | Startup / boundary only (inside try/catch) |
 
-#### `safety/safe_pointer.h` - SafePointer
+#### `src/safety/safe_pointer.h` - SafePointer
 - Non-throwing RAII wrapper for C-style resources
 - Template class: `SafePointer<T, CreateFn, DestroyFn>`
 - Returns nullptr on failure (no exceptions)
@@ -32,7 +32,7 @@ This document summarizes the safety infrastructure refactoring implemented in th
 - Non-copyable, movable
 - Destructor calls `DestroyFn(ptr)` noexcept
 
-#### `safety/safe_result_pointer.h` - SafeResultPointer
+#### `src/safety/safe_result_pointer.h` - SafeResultPointer
 - Non-throwing RAII wrapper with error messages
 - Template class: `SafeResultPointer<T, CreateFn, DestroyFn>`
 - Stores error message on failure (no exceptions)
@@ -40,7 +40,7 @@ This document summarizes the safety infrastructure refactoring implemented in th
 - Non-copyable, movable
 - Destructor calls `DestroyFn(ptr)` noexcept
 
-#### `safety/smart_pointer.h` - SmartPointer
+#### `src/safety/smart_pointer.h` - SmartPointer
 - Throwing RAII wrapper for C-style resources
 - Template class: `SmartPointer<T, CreateFn, DestroyFn>`
 - Constructor takes `std::string` argument
@@ -50,7 +50,7 @@ This document summarizes the safety infrastructure refactoring implemented in th
 - Non-copyable, movable
 - Destructor calls `DestroyFn(ptr)` noexcept
 
-#### `safety/safe_scope.h`
+#### `src/safety/safe_scope.h`
 - `SafeScope` struct - Marker for no-throw zones (workers, realtime)
 - `SafeBoundary` struct - Marker for exception boundaries (startup only)
 - Both are non-copyable, non-movable markers
@@ -170,12 +170,14 @@ bool AppHost::Build(ServiceCollection& services) {
 ## Files Modified
 
 ### New Files
-1. `safety/smart_pointer.h` - SmartPointer template class
-2. `safety/safe_scope.h` - SafeScope and SafeBoundary markers
-3. `safety/README.md` - Documentation
-4. `tools/clang-tidy/SmartPointerInTryCheck.h` - Custom check header
-5. `tools/clang-tidy/SmartPointerInTryCheck.cpp` - Custom check implementation
-6. `.clang-tidy` - Clang-tidy configuration
+1. `src/safety/safe_pointer.h` - SafePointer template class (non-throwing)
+2. `src/safety/safe_result_pointer.h` - SafeResultPointer template class (non-throwing with errors)
+3. `src/safety/smart_pointer.h` - SmartPointer template class (throwing)
+4. `src/safety/safe_scope.h` - SafeScope and SafeBoundary markers
+5. `src/safety/README.md` - Documentation
+6. `tools/clang-tidy/SmartPointerInTryCheck.h` - Custom check header
+7. `tools/clang-tidy/SmartPointerInTryCheck.cpp` - Custom check implementation
+8. `.clang-tidy` - Clang-tidy configuration
 
 ### Modified Files
 1. `Makefile` - Updated include paths
