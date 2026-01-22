@@ -220,7 +220,9 @@ void AudioProcessorService::RunWorker() {
             if (!pcm.empty()) {
                 std::cout << "[DEBUG] STT: dispatch segment | samples=" << pcm.size()
                           << " | thread=" << std::this_thread::get_id() << std::endl;
-                stt_->Transcribe(pcm.data(), static_cast<int>(pcm.size()));
+                if (stt_) {
+                    stt_->Transcribe(pcm.data(), static_cast<int>(pcm.size()));
+                }
             }
         }
     }

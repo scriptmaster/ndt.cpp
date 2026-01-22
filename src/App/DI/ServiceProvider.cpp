@@ -218,10 +218,12 @@ bool ServiceProvider::StartServices() {
     // Start services in registration order
     // LoggingService is first (guaranteed by validation)
     for (auto& service : servicesOrdered_) {
+        const char* serviceName = typeid(*service).name();
         try {
+            std::cout << "[DEBUG] Starting service: " << serviceName << std::endl;
             if (!service->Start()) {
                 // Start failed - rollback all started services
-                std::cout << "[ERROR] Service failed to start - rolling back..." << std::endl;
+                std::cout << "[ERROR] Service failed to start - rolling back... (" << serviceName << ")" << std::endl;
                 for (auto it = started.rbegin(); it != started.rend(); ++it) {
                     try {
                         (*it)->Stop();
@@ -232,9 +234,21 @@ bool ServiceProvider::StartServices() {
                 return false;
             }
             started.push_back(service);
+        } catch (const std::exception& e) {
+            // Exception during start - rollback all started services
+            std::cout << "[ERROR] Exception during service start - rolling back... (" << serviceName
+                      << ") " << e.what() << std::endl;
+            for (auto it = started.rbegin(); it != started.rend(); ++it) {
+                try {
+                    (*it)->Stop();
+                } catch (...) {
+                    // Continue stopping even if some fail
+                }
+            }
+            return false;
         } catch (...) {
             // Exception during start - rollback all started services
-            std::cout << "[ERROR] Exception during service start - rolling back..." << std::endl;
+            std::cout << "[ERROR] Exception during service start - rolling back... (" << serviceName << ")" << std::endl;
             for (auto it = started.rbegin(); it != started.rend(); ++it) {
                 try {
                     (*it)->Stop();

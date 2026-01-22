@@ -5,8 +5,8 @@ CFLAGS = -O2 -w
 CC = gcc
 CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -w
 WHISPER_VERSION_TAG = v1.8.3
-CXXFLAGS += -DWHISPER_VERSION=\"$(WHISPER_VERSION_TAG)\"
-CFLAGS += -DGGML_VERSION=\"$(WHISPER_VERSION_TAG)\" -DGGML_COMMIT=\"$(WHISPER_VERSION_TAG)\"
+CXXFLAGS += -DWHISPER_VERSION=\"$(WHISPER_VERSION_TAG)\" -DGGML_USE_CPU
+CFLAGS += -DGGML_VERSION=\"$(WHISPER_VERSION_TAG)\" -DGGML_COMMIT=\"$(WHISPER_VERSION_TAG)\" -DGGML_USE_CPU
 LDFLAGS =
 
 # Platform-specific flags
@@ -277,6 +277,9 @@ TEST_EXTRA_SRCS = src/Services/WindowService/SceneLoader.cpp \
                   src/Services/AudioPlayerService/AudioSeed.cpp \
                   src/Services/AudioCaptureService/AudioWaveform.cpp \
                   src/Services/STTService/STTService.cpp \
+                  src/App/third_party/whisper/ggml-backend.cpp \
+                  src/App/third_party/whisper/ggml-backend-reg.cpp \
+                  src/App/third_party/whisper/ggml-threading.cpp \
                   src/App/third_party/whisper/whisper.cpp
 TEST_EXTRA_OBJS = $(TEST_EXTRA_SRCS:.cpp=.o)
 TEST_EXTRA_C_SRCS = src/App/third_party/whisper/ggml.c src/App/third_party/whisper/ggml-alloc.c src/App/third_party/whisper/ggml-quants.c

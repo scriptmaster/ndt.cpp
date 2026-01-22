@@ -83,6 +83,7 @@ void AppHost::ConfigureServices(ServiceCollection& services) {
     services.Register<ISTTService, STTService>();
     services.Register<ILLMService, LLMService>();
     services.Register<ITTSService, TTSService>();
+    // services.Register<W2LSService, W2LService>();
 }
 
 bool AppHost::Build(ServiceCollection& services) {

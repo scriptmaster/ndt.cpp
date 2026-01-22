@@ -171,6 +171,9 @@ static bool ggml_graph_compute_helper(
          ggml_abort_callback   abort_callback,
                         void * abort_callback_data) {
     ggml_backend_ptr backend { ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr) };
+    if (!backend) {
+        return false;
+    }
 
     auto * reg = ggml_backend_dev_backend_reg(ggml_backend_get_device(backend.get()));
 
@@ -1386,19 +1389,21 @@ static buft_list_t make_buft_list(whisper_context_params & params) {
 
     // CPU Extra
     auto * cpu_dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
-    auto * cpu_reg = ggml_backend_dev_backend_reg(cpu_dev);
-    auto get_extra_bufts_fn = (ggml_backend_dev_get_extra_bufts_t)
-        ggml_backend_reg_get_proc_address(cpu_reg, "ggml_backend_dev_get_extra_bufts");
-    if (get_extra_bufts_fn) {
-        ggml_backend_buffer_type_t * extra_bufts = get_extra_bufts_fn(cpu_dev);
-        while (extra_bufts && *extra_bufts) {
-            buft_list.emplace_back(cpu_dev, *extra_bufts);
-            ++extra_bufts;
+    if (cpu_dev) {
+        auto * cpu_reg = ggml_backend_dev_backend_reg(cpu_dev);
+        auto get_extra_bufts_fn = (ggml_backend_dev_get_extra_bufts_t)
+            ggml_backend_reg_get_proc_address(cpu_reg, "ggml_backend_dev_get_extra_bufts");
+        if (get_extra_bufts_fn) {
+            ggml_backend_buffer_type_t * extra_bufts = get_extra_bufts_fn(cpu_dev);
+            while (extra_bufts && *extra_bufts) {
+                buft_list.emplace_back(cpu_dev, *extra_bufts);
+                ++extra_bufts;
+            }
         }
-    }
 
-    // CPU
-    buft_list.emplace_back(cpu_dev, ggml_backend_cpu_buffer_type());
+        // CPU
+        buft_list.emplace_back(cpu_dev, ggml_backend_cpu_buffer_type());
+    }
 
     return buft_list;
 }
@@ -1459,7 +1464,9 @@ static bool weight_buft_supported(const whisper_hparams & hparams, ggml_tensor *
 }
 
 static ggml_backend_buffer_type_t select_weight_buft(const whisper_hparams & hparams, ggml_tensor * w, ggml_op op, buft_list_t buft_list) {
-    GGML_ASSERT(!buft_list.empty());
+    if (buft_list.empty()) {
+        return nullptr;
+    }
     for (const auto & p : buft_list) {
         ggml_backend_dev_t dev = p.first;
         ggml_backend_buffer_type_t buft = p.second;
