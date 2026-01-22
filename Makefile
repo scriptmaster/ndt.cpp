@@ -207,6 +207,16 @@ $(TARGET): build
 		exit 1; \
 	fi;
 
+# Clang build target with sanitizers
+.PHONY: clang
+clang: CXX = clang++
+clang: CC = clang
+clang: CXXFLAGS += -fsanitize=address -fsanitize=undefined -fsanitize=leak -fno-omit-frame-pointer -g
+clang: CFLAGS += -fsanitize=address -fsanitize=undefined -fsanitize=leak -fno-omit-frame-pointer -g
+clang: LDFLAGS += -fsanitize=address -fsanitize=undefined -fsanitize=leak
+clang: clean build
+	@echo "Built with clang++ and sanitizers enabled"
+
 run:
 	@echo "Running latest versioned executable"
 	@LATEST_VERSION=$$(grep "define VERSION_BUILD" src/App/version.h | awk '{print $$3}'); \
