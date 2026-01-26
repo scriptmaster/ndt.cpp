@@ -36,7 +36,8 @@ bool checkTetraClick(WindowData& wd, double xpos, double ypos, int windowWidth, 
         wd.tetraClickCount++;
         wd.lastTetraClickTime = currentTime;
         
-        if (wd.tetraClickCount >= 4) {
+        // Changed from 4 clicks to 3 clicks (triple-click)
+        if (wd.tetraClickCount >= 3) {
             wd.tetraClickCount = 0;
             wd.state = DisplayState::ADMIN_SCENE;
             wd.currentAdminScene = resolveScenePath(
@@ -77,7 +78,7 @@ void renderAdminModeText(int windowWidth, int windowHeight) {
 }
 
 void renderTetraClickIndicator(int windowWidth, int windowHeight, int clickCount) {
-    if (clickCount <= 0 || clickCount > 4) return;
+    if (clickCount <= 0 || clickCount > 3) return;
     
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
@@ -97,9 +98,9 @@ void renderTetraClickIndicator(int windowWidth, int windowHeight, int clickCount
     float spacing = 4.0f;
     
     for (int i = 0; i < clickCount; i++) {
-        float alpha = 0.3f + (float)i * 0.2f;
+        float alpha = 0.3f + (float)i * 0.25f;
         glColor4f(0.2f, 0.8f, 1.0f, alpha);
-        float barY = y + (64.0f - barHeight * 4 - spacing * 3) + i * (barHeight + spacing);
+        float barY = y + (64.0f - barHeight * 3 - spacing * 2) + i * (barHeight + spacing);
         glBegin(GL_QUADS);
             glVertex2f(x + 10.0f, barY);
             glVertex2f(x + 54.0f, barY);

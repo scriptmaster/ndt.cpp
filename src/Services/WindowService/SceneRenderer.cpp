@@ -55,6 +55,59 @@ static void renderLanguageCard(const Widget& widget, float x, float y, float w, 
     glDisable(GL_BLEND);
 }
 
+// Render a tab button widget (tabs are buttons with text, padding, and bottom border only)
+static void renderTab(const Widget& widget, float x, float y, float w, float h) {
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Check if this tab is active
+    bool isActive = widget.properties.count("active") && widget.properties.at("active") == "true";
+    
+    // Draw tab background (slightly transparent)
+    if (isActive) {
+        glColor4f(0.25f, 0.35f, 0.45f, 0.9f);
+    } else {
+        glColor4f(0.15f, 0.2f, 0.25f, 0.7f);
+    }
+    glBegin(GL_QUADS);
+        glVertex2f(x, y);
+        glVertex2f(x + w, y);
+        glVertex2f(x + w, y + h);
+        glVertex2f(x, y + h);
+    glEnd();
+    
+    // Draw bottom border only (tab indicator)
+    float borderThickness = 3.0f;
+    if (isActive) {
+        glColor4f(0.3f, 0.8f, 1.0f, 1.0f);
+    } else {
+        glColor4f(0.4f, 0.5f, 0.6f, 0.6f);
+    }
+    glBegin(GL_QUADS);
+        glVertex2f(x, y);
+        glVertex2f(x + w, y);
+        glVertex2f(x + w, y + borderThickness);
+        glVertex2f(x, y + borderThickness);
+    glEnd();
+    
+    // Draw text (placeholder - just a small rectangle for now)
+    // In a full implementation, you would use stb_easy_font or similar
+    std::string label = widget.properties.count("label") ? widget.properties.at("label") : "Tab";
+    (void)label; // Suppress unused variable warning
+    
+    glColor4f(1.0f, 1.0f, 1.0f, 0.9f);
+    float textX = x + w * 0.5f - 20.0f;
+    float textY = y + h * 0.5f - 5.0f;
+    glBegin(GL_QUADS);
+        glVertex2f(textX, textY);
+        glVertex2f(textX + 40.0f, textY);
+        glVertex2f(textX + 40.0f, textY + 10.0f);
+        glVertex2f(textX, textY + 10.0f);
+    glEnd();
+    
+    glDisable(GL_BLEND);
+}
+
 void renderScene(const Scene& scene, int windowWidth, int windowHeight, float deltaTime, int frameCount) {
     try {
         if (scene.cols <= 0 || scene.rows <= 0 || windowWidth <= 0 || windowHeight <= 0) {
@@ -106,6 +159,21 @@ void renderScene(const Scene& scene, int windowWidth, int windowHeight, float de
                 h -= marginY * 2;
                 
                 renderLanguageCard(widget, x, y, w, h);
+            } else if (widget.type == "tab") {
+                // Render tab widget (button with text, padding, and bottom border only)
+                float x = widget.col * cellWidth;
+                float y = (scene.rows - widget.row - widget.height) * cellHeight;
+                float w = widget.width * cellWidth;
+                float h = widget.height * cellHeight;
+                
+                float marginX = w * widget.margin;
+                float marginY = h * widget.margin;
+                x += marginX;
+                y += marginY;
+                w -= marginX * 2;
+                h -= marginY * 2;
+                
+                renderTab(widget, x, y, w, h);
             }
         }
         
