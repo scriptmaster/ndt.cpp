@@ -67,6 +67,7 @@ MINGW_DETECT := $(shell echo $(UNAME_S) | grep -i mingw || echo "")
 MSYS_DETECT := $(shell echo $(UNAME_S) | grep -i msys || echo "")
 
 ifeq ($(UNAME_S),Linux)
+    CFLAGS += -D_GNU_SOURCE
     LDFLAGS += -lglfw -lGL -lm -ldl -lX11 -lpthread
 endif
 ifeq ($(UNAME_S),Darwin)

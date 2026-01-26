@@ -3,9 +3,9 @@
 
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 0
-#define VERSION_PATCH 22
-#define VERSION_BUILD 85
+#define VERSION_PATCH 26
+#define VERSION_BUILD 13
 
-#define VERSION_STRING "0.0.22.85"
+#define VERSION_STRING "0.0.26.13"
 
 #endif // VERSION_H

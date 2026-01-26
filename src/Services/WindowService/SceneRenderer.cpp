@@ -15,6 +15,12 @@
 #include <GL/gl.h>
 #endif
 
+// Include stb_easy_font for text rendering
+// Note: STB_EASY_FONT_IMPLEMENTATION is defined in TextOverlay.cpp, so we only include the header here
+extern "C" {
+#include "stb/stb_easy_font.h"
+}
+
 // Forward declarations for dependencies to be ported
 extern void logSceneRender(int frameCount, int fbWidth, int fbHeight, int state, 
                            float deltaTime, const std::string& bgGraphic, int widgetCount);
@@ -52,6 +58,76 @@ static void renderLanguageCard(const Widget& widget, float x, float y, float w, 
     glBegin(GL_POINTS);
         glVertex2f(x + w * 0.5f, y + h * 0.5f);
     glEnd();
+    glDisable(GL_BLEND);
+}
+
+// Render a tab button widget (tabs are buttons with text, padding, and bottom border only)
+static void renderTab(const Widget& widget, float x, float y, float w, float h) {
+    const size_t FONT_BUFFER_SIZE = 16384;
+    
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Check if this tab is active
+    bool isActive = widget.properties.count("active") && widget.properties.at("active") == "true";
+    
+    // Draw tab background (slightly transparent)
+    if (isActive) {
+        glColor4f(0.25f, 0.35f, 0.45f, 0.9f);
+    } else {
+        glColor4f(0.15f, 0.2f, 0.25f, 0.7f);
+    }
+    glBegin(GL_QUADS);
+        glVertex2f(x, y);
+        glVertex2f(x + w, y);
+        glVertex2f(x + w, y + h);
+        glVertex2f(x, y + h);
+    glEnd();
+    
+    // Draw bottom border only (tab indicator)
+    float borderThickness = 3.0f;
+    if (isActive) {
+        glColor4f(0.3f, 0.8f, 1.0f, 1.0f);
+    } else {
+        glColor4f(0.4f, 0.5f, 0.6f, 0.6f);
+    }
+    glBegin(GL_QUADS);
+        glVertex2f(x, y);
+        glVertex2f(x + w, y);
+        glVertex2f(x + w, y + borderThickness);
+        glVertex2f(x, y + borderThickness);
+    glEnd();
+    
+    // Draw text using stb_easy_font
+    std::string label = widget.properties.count("label") ? widget.properties.at("label") : "Tab";
+    if (!label.empty()) {
+        // stb_easy_font requires non-const char*, so we make a local copy
+        char labelCopy[256];
+        snprintf(labelCopy, sizeof(labelCopy), "%s", label.c_str());
+        
+        char buffer[FONT_BUFFER_SIZE];
+        const int num_quads = stb_easy_font_print(0, 0, labelCopy, nullptr, buffer, sizeof(buffer));
+        
+        if (num_quads > 0) {
+            // Calculate text dimensions for centering
+            float textWidth = stb_easy_font_width(labelCopy);
+            float textHeight = stb_easy_font_height(labelCopy);
+            
+            // Center the text
+            float textX = x + (w - textWidth) * 0.5f;
+            float textY = y + (h - textHeight) * 0.5f;
+            
+            glPushMatrix();
+            glTranslatef(textX, textY, 0.0f);
+            glColor4f(1.0f, 1.0f, 1.0f, isActive ? 1.0f : 0.9f);
+            glEnableClientState(GL_VERTEX_ARRAY);
+            glVertexPointer(2, GL_FLOAT, 16, buffer);
+            glDrawArrays(GL_QUADS, 0, num_quads * 4);
+            glDisableClientState(GL_VERTEX_ARRAY);
+            glPopMatrix();
+        }
+    }
+    
     glDisable(GL_BLEND);
 }
 
@@ -106,6 +182,21 @@ void renderScene(const Scene& scene, int windowWidth, int windowHeight, float de
                 h -= marginY * 2;
                 
                 renderLanguageCard(widget, x, y, w, h);
+            } else if (widget.type == "tab") {
+                // Render tab widget (button with text, padding, and bottom border only)
+                float x = widget.col * cellWidth;
+                float y = (scene.rows - widget.row - widget.height) * cellHeight;
+                float w = widget.width * cellWidth;
+                float h = widget.height * cellHeight;
+                
+                float marginX = w * widget.margin;
+                float marginY = h * widget.margin;
+                x += marginX;
+                y += marginY;
+                w -= marginX * 2;
+                h -= marginY * 2;
+                
+                renderTab(widget, x, y, w, h);
             }
         }
         

@@ -1,5 +1,6 @@
 #include "TTSService.h"
 #include "../Common/SidecarManager.h"
+#include <iostream>
 
 /**
  * TTSService implementation
