@@ -149,9 +149,10 @@ void handleAdminClick(WindowData& wd, double xpos, double ypos, int windowWidth,
     for (const auto& widget : currentScene.widgets) {
         if (widget.type != "tab") continue;
         
-        // Calculate tab position and dimensions
+        // Calculate tab position and dimensions (use same coordinate system as renderer)
         float x = widget.col * cellWidth;
-        float y = widget.row * cellHeight; // Note: y is from top in GLFW coordinates
+        // Fix coordinate system - use bottom-origin like OpenGL, not top-origin
+        float y = (currentScene.rows - widget.row - widget.height) * cellHeight;
         float w = widget.width * cellWidth;
         float h = widget.height * cellHeight;
         
@@ -163,8 +164,11 @@ void handleAdminClick(WindowData& wd, double xpos, double ypos, int windowWidth,
         w -= marginX * 2;
         h -= marginY * 2;
         
+        // Convert GLFW mouse coordinates (top-origin) to OpenGL coordinates (bottom-origin)
+        double glYpos = windowHeight - ypos;
+        
         // Check if click is within this tab
-        if (xpos >= x && xpos <= x + w && ypos >= y && ypos <= y + h) {
+        if (xpos >= x && xpos <= x + w && glYpos >= y && glYpos <= y + h) {
             // Found clicked tab - switch to its scene
             if (widget.properties.count("scene")) {
                 std::string newScene = widget.properties.at("scene");

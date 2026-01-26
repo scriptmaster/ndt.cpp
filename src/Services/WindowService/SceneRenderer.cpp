@@ -15,6 +15,9 @@
 #include <GL/gl.h>
 #endif
 
+// Include stb_easy_font for text rendering (header-only, no implementation here)
+#include "stb/stb_easy_font.h"
+
 // Forward declarations for dependencies to be ported
 extern void logSceneRender(int frameCount, int fbWidth, int fbHeight, int state, 
                            float deltaTime, const std::string& bgGraphic, int widgetCount);
@@ -90,20 +93,33 @@ static void renderTab(const Widget& widget, float x, float y, float w, float h) 
         glVertex2f(x, y + borderThickness);
     glEnd();
     
-    // Draw text (placeholder - just a small rectangle for now)
-    // In a full implementation, you would use stb_easy_font or similar
+    // Draw text using stb_easy_font
     std::string label = widget.properties.count("label") ? widget.properties.at("label") : "Tab";
-    (void)label; // Suppress unused variable warning
-    
-    glColor4f(1.0f, 1.0f, 1.0f, 0.9f);
-    float textX = x + w * 0.5f - 20.0f;
-    float textY = y + h * 0.5f - 5.0f;
-    glBegin(GL_QUADS);
-        glVertex2f(textX, textY);
-        glVertex2f(textX + 40.0f, textY);
-        glVertex2f(textX + 40.0f, textY + 10.0f);
-        glVertex2f(textX, textY + 10.0f);
-    glEnd();
+    if (!label.empty()) {
+        // stb_easy_font uses top-left origin, so we need to flip y-coordinate
+        // Center the text in the tab
+        char buffer[16384];
+        const int num_quads = stb_easy_font_print(0, 0, const_cast<char*>(label.c_str()), nullptr, buffer, sizeof(buffer));
+        
+        if (num_quads > 0) {
+            // Calculate text dimensions for centering
+            float textWidth = stb_easy_font_width(const_cast<char*>(label.c_str()));
+            float textHeight = stb_easy_font_height(const_cast<char*>(label.c_str()));
+            
+            // Center the text
+            float textX = x + (w - textWidth) * 0.5f;
+            float textY = y + (h - textHeight) * 0.5f;
+            
+            glPushMatrix();
+            glTranslatef(textX, textY, 0.0f);
+            glColor4f(1.0f, 1.0f, 1.0f, isActive ? 1.0f : 0.9f);
+            glEnableClientState(GL_VERTEX_ARRAY);
+            glVertexPointer(2, GL_FLOAT, 16, buffer);
+            glDrawArrays(GL_QUADS, 0, num_quads * 4);
+            glDisableClientState(GL_VERTEX_ARRAY);
+            glPopMatrix();
+        }
+    }
     
     glDisable(GL_BLEND);
 }

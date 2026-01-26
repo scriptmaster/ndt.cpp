@@ -685,13 +685,20 @@ void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alph
                 /**
                  * Check for mouse clicks on tab widgets
                  * Handle tab switching when user clicks on tabs
+                 * Only trigger on button release to avoid continuous calls
                  */
-                if (glfwGetMouseButton(wd.window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+                static bool lastButtonState = false;
+                bool currentButtonState = (glfwGetMouseButton(wd.window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS);
+                
+                // Detect button release (was pressed, now released)
+                if (lastButtonState && !currentButtonState) {
                     double xpos, ypos;
                     glfwGetCursorPos(wd.window, &xpos, &ypos);
                     double currentTime = glfwGetTime();
                     handleAdminClick(wd, xpos, ypos, fbWidth, fbHeight, currentTime);
                 }
+                
+                lastButtonState = currentButtonState;
             }
             
             /**
