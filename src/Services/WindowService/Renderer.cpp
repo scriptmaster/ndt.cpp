@@ -681,6 +681,17 @@ void renderContentForState(WindowData& wd, int fbWidth, int fbHeight, float alph
              */
             if (adminSceneLoaded) {
                 renderScene(adminScene, fbWidth, fbHeight, deltaTime, frameCount);
+                
+                /**
+                 * Check for mouse clicks on tab widgets
+                 * Handle tab switching when user clicks on tabs
+                 */
+                if (glfwGetMouseButton(wd.window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+                    double xpos, ypos;
+                    glfwGetCursorPos(wd.window, &xpos, &ypos);
+                    double currentTime = glfwGetTime();
+                    handleAdminClick(wd, xpos, ypos, fbWidth, fbHeight, currentTime);
+                }
             }
             
             /**

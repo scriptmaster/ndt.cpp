@@ -121,11 +121,64 @@ bool loadAdminScene(const std::string& sceneFile, Scene& scene) {
 }
 
 void handleAdminClick(WindowData& wd, double xpos, double ypos, int windowWidth, int windowHeight, double currentTime) {
-    // Placeholder - handle admin widget clicks
-    (void)wd;
-    (void)xpos;
-    (void)ypos;
-    (void)windowWidth;
-    (void)windowHeight;
-    (void)currentTime;
+    // Handle admin widget clicks (tab switching)
+    if (wd.state != DisplayState::ADMIN_SCENE) return;
+    
+    // Debounce clicks (prevent rapid re-triggering)
+    const double CLICK_DEBOUNCE_TIME = 0.3; // 300ms between clicks
+    static double lastClickTime = 0.0;
+    if (currentTime - lastClickTime < CLICK_DEBOUNCE_TIME) return;
+    
+    // Load current admin scene to check tab positions
+    static Scene currentScene;
+    static bool sceneLoaded = false;
+    static std::string lastSceneFile;
+    
+    if (!sceneLoaded || lastSceneFile != wd.currentAdminScene) {
+        sceneLoaded = loadAdminScene(wd.currentAdminScene, currentScene);
+        lastSceneFile = wd.currentAdminScene;
+        if (!sceneLoaded) return;
+    }
+    
+    // Calculate grid cell dimensions
+    if (currentScene.cols <= 0 || currentScene.rows <= 0) return;
+    float cellWidth = (float)windowWidth / currentScene.cols;
+    float cellHeight = (float)windowHeight / currentScene.rows;
+    
+    // Check if click is on a tab widget
+    for (const auto& widget : currentScene.widgets) {
+        if (widget.type != "tab") continue;
+        
+        // Calculate tab position and dimensions
+        float x = widget.col * cellWidth;
+        float y = widget.row * cellHeight; // Note: y is from top in GLFW coordinates
+        float w = widget.width * cellWidth;
+        float h = widget.height * cellHeight;
+        
+        // Apply margin
+        float marginX = w * widget.margin;
+        float marginY = h * widget.margin;
+        x += marginX;
+        y += marginY;
+        w -= marginX * 2;
+        h -= marginY * 2;
+        
+        // Check if click is within this tab
+        if (xpos >= x && xpos <= x + w && ypos >= y && ypos <= y + h) {
+            // Found clicked tab - switch to its scene
+            if (widget.properties.count("scene")) {
+                std::string newScene = widget.properties.at("scene");
+                std::string resolvedScene = resolveScenePath(
+                    "config/scenes/" + newScene,
+                    "scenes/" + newScene
+                );
+                if (resolvedScene != wd.currentAdminScene) {
+                    wd.currentAdminScene = resolvedScene;
+                    lastClickTime = currentTime; // Update debounce timer
+                    std::cout << "[DEBUG] Switching to admin scene: " << resolvedScene << std::endl;
+                }
+            }
+            break;
+        }
+    }
 }
