@@ -15,8 +15,11 @@
 #include <GL/gl.h>
 #endif
 
-// Include stb_easy_font for text rendering (header-only, no implementation here)
+// Include stb_easy_font for text rendering
+// Note: STB_EASY_FONT_IMPLEMENTATION is defined in TextOverlay.cpp, so we only include the header here
+extern "C" {
 #include "stb/stb_easy_font.h"
+}
 
 // Forward declarations for dependencies to be ported
 extern void logSceneRender(int frameCount, int fbWidth, int fbHeight, int state, 
@@ -60,6 +63,8 @@ static void renderLanguageCard(const Widget& widget, float x, float y, float w, 
 
 // Render a tab button widget (tabs are buttons with text, padding, and bottom border only)
 static void renderTab(const Widget& widget, float x, float y, float w, float h) {
+    const size_t FONT_BUFFER_SIZE = 16384;
+    
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     
@@ -96,15 +101,17 @@ static void renderTab(const Widget& widget, float x, float y, float w, float h) 
     // Draw text using stb_easy_font
     std::string label = widget.properties.count("label") ? widget.properties.at("label") : "Tab";
     if (!label.empty()) {
-        // stb_easy_font uses top-left origin, so we need to flip y-coordinate
-        // Center the text in the tab
-        char buffer[16384];
-        const int num_quads = stb_easy_font_print(0, 0, const_cast<char*>(label.c_str()), nullptr, buffer, sizeof(buffer));
+        // stb_easy_font requires non-const char*, so we make a local copy
+        char labelCopy[256];
+        snprintf(labelCopy, sizeof(labelCopy), "%s", label.c_str());
+        
+        char buffer[FONT_BUFFER_SIZE];
+        const int num_quads = stb_easy_font_print(0, 0, labelCopy, nullptr, buffer, sizeof(buffer));
         
         if (num_quads > 0) {
             // Calculate text dimensions for centering
-            float textWidth = stb_easy_font_width(const_cast<char*>(label.c_str()));
-            float textHeight = stb_easy_font_height(const_cast<char*>(label.c_str()));
+            float textWidth = stb_easy_font_width(labelCopy);
+            float textHeight = stb_easy_font_height(labelCopy);
             
             // Center the text
             float textX = x + (w - textWidth) * 0.5f;
